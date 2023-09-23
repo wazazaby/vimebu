@@ -53,8 +53,7 @@ func (b *Builder) String() string {
 		return ""
 	}
 
-	b.preallocate()
-
+	b.underlying.Grow(b.calculatePrealloc())
 	b.underlying.WriteString(b.name + `{`)
 
 	first := true
@@ -79,12 +78,11 @@ const (
 	equalQuotesLen = 3
 )
 
-func (b *Builder) preallocate() {
+func (b *Builder) calculatePrealloc() int {
 	if n := len(b.labels); n > 0 {
-		b.underlying.Grow(b.size + curlyBraceslen + (n * equalQuotesLen) + n - commaLen)
-	} else {
-		b.underlying.Grow(b.size + curlyBraceslen)
+		return b.size + curlyBraceslen + (n * equalQuotesLen) + n - commaLen
 	}
+	return b.size + curlyBraceslen
 }
 
 var _ fmt.Stringer = (*Builder)(nil)
