@@ -33,8 +33,25 @@ func getCassandraQueryCounter(name string, host net.IP) *vm.Counter {
         Metric("cassandra_query_total").
         Label("name", name).
         Label("host", host.String()).
-        String()
+        String() // cassandra_query_total{name="beep",host="1.2.3.4"}
     return vm.GetOrCreateCounter(metric)
 }
+```
 
+You can also register a map of labels directly.
+```go
+import (
+    "net"
+
+    "github.com/wazazaby/vimebu"
+    vm "github.com/VictoriaMetrics/metrics"
+)
+
+func getNodeMemoryUsageGauge(kvs map[string]string) *vm.Counter {
+    metric := vimebu.
+        Metric("node_memory_usage_bytes").
+        Labels(kvs)
+        String() // node_memory_usage_bytes{id="compute_1",store="whatever",cluster="guava"}
+    return vm.GetOrCreateGauge(metric, func() float64 { return 0 })
+}
 ```
