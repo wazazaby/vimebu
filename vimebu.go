@@ -46,6 +46,26 @@ func (b *Builder) Label(label, value string) *Builder {
 	return b
 }
 
+// Labels appends multiple labels and label values to the builder.
+// NoOp if the metric name or the map are empty.
+// Pairs containing an empty label or label value will be skipped.
+func (b *Builder) Labels(pairs map[string]string) *Builder {
+	if b.name == "" || len(pairs) == 0 {
+		return b
+	}
+	if b.labels == nil {
+		b.labels = make(map[string]string)
+	}
+	for label, value := range pairs {
+		if label == "" || value == "" {
+			continue
+		}
+		b.size += len(label + value)
+		b.labels[label] = value
+	}
+	return b
+}
+
 // String builds the metric by returning the accumulated string.
 // Returns an empty string if the metric name is empty.
 func (b *Builder) String() string {
