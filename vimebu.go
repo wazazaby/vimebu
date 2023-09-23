@@ -21,7 +21,7 @@ func NewBuilder() *Builder {
 	return &Builder{}
 }
 
-// Metric sets the metric name of the builder.
+// Metric sets the metric name of the Builder.
 // NoOp if called more than once or if the name is empty.
 func (b *Builder) Metric(name string) *Builder {
 	if b.name != "" || name == "" {
@@ -32,7 +32,7 @@ func (b *Builder) Metric(name string) *Builder {
 	return b
 }
 
-// Label appends a pair of label and label value to the builder.
+// Label appends a pair of label and label value to the Builder.
 // NoOp if the metric name, the label or label value are empty.
 func (b *Builder) Label(label, value string) *Builder {
 	if b.name == "" || label == "" || value == "" {
@@ -46,7 +46,7 @@ func (b *Builder) Label(label, value string) *Builder {
 	return b
 }
 
-// Labels appends multiple labels and label values to the builder.
+// Labels appends multiple labels and label values to the Builder.
 // NoOp if the metric name or the map are empty.
 // Pairs containing an empty label or label value will be skipped.
 func (b *Builder) Labels(pairs map[string]string) *Builder {
@@ -93,6 +93,14 @@ func (b *Builder) String() string {
 	b.underlying.WriteString("}")
 
 	return b.underlying.String()
+}
+
+// Reset resets the Builder to be empty.
+func (b *Builder) Reset() {
+	b.name = ""
+	clear(b.labels)
+	b.underlying.Reset()
+	b.size = 0
 }
 
 const (
