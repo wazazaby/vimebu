@@ -54,20 +54,20 @@ func (b *Builder) String() string {
 	}
 
 	b.underlying.Grow(b.calculatePrealloc())
-	b.underlying.WriteString(b.name + `{`)
+	b.underlying.WriteString(b.name + "{")
 
 	first := true
 	for _, pair := range b.labels {
 		if first {
 			first = false
 		} else {
-			b.underlying.WriteString(`,`)
+			b.underlying.WriteString(",")
 		}
 
 		b.underlying.WriteString(pair.label + `="` + pair.value + `"`)
 	}
 
-	b.underlying.WriteString(`}`)
+	b.underlying.WriteString("}")
 
 	return b.underlying.String()
 }
