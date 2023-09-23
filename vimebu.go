@@ -15,10 +15,10 @@ type Builder struct {
 	size       int // size is used as a counter to know how many bytes we need to preallocate to the strings.Builder buffer
 }
 
-// NewBuilder creates a new Builder.
+// Metric creates a new Builder.
 // It can be useful if you want to create a metric in a single line.
-func NewBuilder() *Builder {
-	return &Builder{}
+func Metric(name string) *Builder {
+	return (&Builder{}).Metric(name)
 }
 
 // Metric sets the metric name of the Builder.

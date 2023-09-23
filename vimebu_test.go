@@ -66,7 +66,7 @@ func TestBuilder(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("one line", func(t *testing.T) {
-				result := NewBuilder().Metric(tc.input.name).Labels(tc.input.labels).String()
+				result := Metric(tc.input.name).Labels(tc.input.labels).String()
 				// Comparing len of produced string because the labels map order is not guaranteed.
 				// Meaning comparing the strings would result in an error on random occasions because of the labels :(
 				// Don't know how to improve this, please let me know if you have an idea.
