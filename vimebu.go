@@ -21,8 +21,8 @@ func NewBuilder() *Builder {
 	return &Builder{}
 }
 
-// Metric TODO:
-// NoOp
+// Metric sets the metric name of the builder.
+// NoOp if called more than once or if the name is empty.
 func (b *Builder) Metric(name string) *Builder {
 	if b.name != "" || name == "" {
 		return b
@@ -32,14 +32,15 @@ func (b *Builder) Metric(name string) *Builder {
 	return b
 }
 
-// pair TODO:
+// pair represents a label => label value pair.
 type pair struct {
 	label, value string
 }
 
-// Label TODO:
+// Label appends a pair of label and label value to the builder.
+// NoOp if the metric name, the label or label value are empty.
 func (b *Builder) Label(label, value string) *Builder {
-	if label == "" || value == "" {
+	if b.name == "" || label == "" || value == "" {
 		return b
 	}
 	b.size += len(label + value)
@@ -47,15 +48,19 @@ func (b *Builder) Label(label, value string) *Builder {
 	return b
 }
 
-// String TODO:
+// String builds the metric by returning the accumulated string.
+// Returns an empty string if the metric name is empty.
 func (b *Builder) String() string {
 	if b.name == "" {
 		return ""
 	}
 
+	// Preallocate the underlying builder's buffer.
 	b.underlying.Grow(b.calculatePrealloc())
+
 	b.underlying.WriteString(b.name + "{")
 
+	// Skip writing a comma after the label / value pair on the first iteration.
 	first := true
 	for _, pair := range b.labels {
 		if first {
@@ -73,11 +78,13 @@ func (b *Builder) String() string {
 }
 
 const (
-	commaLen       = 1
-	curlyBraceslen = 2
-	equalQuotesLen = 3
+	commaLen       = 1 // commaLen is the length in bytes of a comma.
+	curlyBraceslen = 2 // curlyBracesLen is the length in bytes of a pair of curly braces.
+	equalQuotesLen = 3 // equalQuotesLen is the length in bytes of an equal symbol and a pair of double quotes.
 )
 
+// calculatePrealloc calculates the amount of bytes needed for this metric.
+// The result can be used to preallocate the underlying builder's buffer.
 func (b *Builder) calculatePrealloc() int {
 	if n := len(b.labels); n > 0 {
 		return b.size + curlyBraceslen + (n * equalQuotesLen) + n - commaLen
