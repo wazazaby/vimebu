@@ -9,9 +9,9 @@ import (
 // It's backed by a strings.Builder to minimize memory copying.
 // The zero value is ready to use.
 type Builder struct {
+	labels     map[string]string
 	name       string
 	underlying strings.Builder
-	labels     []pair
 	size       int // size is used as a counter to know how many bytes we need to preallocate to the strings.Builder buffer
 }
 
@@ -32,19 +32,17 @@ func (b *Builder) Metric(name string) *Builder {
 	return b
 }
 
-// pair represents a label => label value pair.
-type pair struct {
-	label, value string
-}
-
 // Label appends a pair of label and label value to the builder.
 // NoOp if the metric name, the label or label value are empty.
 func (b *Builder) Label(label, value string) *Builder {
 	if b.name == "" || label == "" || value == "" {
 		return b
 	}
+	if b.labels == nil {
+		b.labels = make(map[string]string)
+	}
 	b.size += len(label + value)
-	b.labels = append(b.labels, pair{label, value})
+	b.labels[label] = value
 	return b
 }
 
@@ -62,14 +60,14 @@ func (b *Builder) String() string {
 
 	// Skip writing a comma after the label / value pair on the first iteration.
 	first := true
-	for _, pair := range b.labels {
+	for label, value := range b.labels {
 		if first {
 			first = false
 		} else {
 			b.underlying.WriteString(",")
 		}
 
-		b.underlying.WriteString(pair.label + `="` + pair.value + `"`)
+		b.underlying.WriteString(label + `="` + value + `"`)
 	}
 
 	b.underlying.WriteString("}")
