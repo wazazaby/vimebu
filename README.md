@@ -23,7 +23,6 @@ It's even more useful when you want to build metrics with variable label values.
 ```go
 import (
     "net"
-
     "github.com/wazazaby/vimebu"
     vm "github.com/VictoriaMetrics/metrics"
 )
@@ -41,8 +40,6 @@ func getCassandraQueryCounter(name string, host net.IP) *vm.Counter {
 You can also register a map of labels directly.
 ```go
 import (
-    "net"
-
     "github.com/wazazaby/vimebu"
     vm "github.com/VictoriaMetrics/metrics"
 )
@@ -55,3 +52,4 @@ func getNodeMemoryUsageGauge(kvs map[string]string) *vm.Counter {
     return vm.GetOrCreateGauge(metric, func() float64 { return 0 })
 }
 ```
+Please note that if you register the same label multiple times, only the last one will be kept.
