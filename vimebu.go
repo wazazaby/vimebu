@@ -38,9 +38,11 @@ func (b *Builder) Label(label, value string) *Builder {
 	if b.name == "" || label == "" || value == "" {
 		return b
 	}
+
 	if b.labels == nil {
 		b.labels = make(map[string]string)
 	}
+
 	b.size += len(label + value)
 	b.labels[label] = value
 	return b
@@ -49,20 +51,15 @@ func (b *Builder) Label(label, value string) *Builder {
 // Labels appends multiple labels and label values to the Builder.
 // NoOp if the metric name or the map are empty.
 // Pairs containing an empty label or label value will be skipped.
-func (b *Builder) Labels(pairs map[string]string) *Builder {
-	if b.name == "" || len(pairs) == 0 {
+func (b *Builder) Labels(labels map[string]string) *Builder {
+	if b.name == "" || len(labels) == 0 {
 		return b
 	}
-	if b.labels == nil {
-		b.labels = make(map[string]string)
+
+	for label, value := range labels {
+		b.Label(label, value)
 	}
-	for label, value := range pairs {
-		if label == "" || value == "" {
-			continue
-		}
-		b.size += len(label + value)
-		b.labels[label] = value
-	}
+
 	return b
 }
 
