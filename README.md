@@ -47,7 +47,7 @@ import (
 func getNodeMemoryUsageGauge(kvs map[string]string) *vm.Counter {
     metric := vimebu.
         Metric("node_memory_usage_bytes").
-        Labels(kvs)
+        Labels(kvs).
         String() // node_memory_usage_bytes{id="compute_1",store="whatever",cluster="guava"}
     return vm.GetOrCreateGauge(metric, func() float64 { return 0 })
 }
