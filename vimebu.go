@@ -79,4 +79,11 @@ func (b *Builder) Reset() {
 	b.underlying.Reset()
 }
 
+// Grow exposes the underlying builder's Grow method for preallocation purposes.
+//
+// Please see [strings.Builder.Grow].
+func (b *Builder) Grow(n int) {
+	b.underlying.Grow(n)
+}
+
 var _ fmt.Stringer = (*Builder)(nil)
