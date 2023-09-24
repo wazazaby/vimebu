@@ -45,6 +45,10 @@ func TestBuilder(t *testing.T) {
 			expected: `http_request_duration_seconds{}`,
 		},
 		{
+			name:     "no name",
+			expected: ``,
+		},
+		{
 			name: "some empty labels and values",
 			input: input{
 				labels: map[string]string{
@@ -76,6 +80,8 @@ func TestBuilder(t *testing.T) {
 
 				t.Run("reset", func(t *testing.T) {
 					b.Reset()
+					require.False(t, b.flName)
+					require.False(t, b.flLabel)
 					require.Empty(t, b.underlying.Cap())
 					require.Empty(t, b.underlying.Len())
 				})
