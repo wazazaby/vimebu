@@ -45,10 +45,6 @@ func TestBuilder(t *testing.T) {
 			expected: `http_request_duration_seconds{}`,
 		},
 		{
-			name:     "no name",
-			expected: ``,
-		},
-		{
 			name: "some empty labels and values",
 			input: input{
 				labels: map[string]string{
@@ -67,10 +63,7 @@ func TestBuilder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("one line", func(t *testing.T) {
 				result := Metric(tc.input.name).Labels(tc.input.labels).String()
-				// Comparing len of produced string because the labels map order is not guaranteed.
-				// Meaning comparing the strings would result in an error on random occasions because of the labels :(
-				// Don't know how to improve this, please let me know if you have an idea.
-				require.Len(t, result, len(tc.expected))
+				require.Equal(t, tc.expected, result)
 			})
 			t.Run("verbose", func(t *testing.T) {
 				var b Builder
@@ -79,13 +72,10 @@ func TestBuilder(t *testing.T) {
 					b.Label(label, value)
 				}
 				result := b.String()
-				// See comment above.
-				require.Len(t, result, len(tc.expected))
+				require.Equal(t, tc.expected, result)
 
 				t.Run("reset", func(t *testing.T) {
 					b.Reset()
-					require.Empty(t, b.name)
-					require.Empty(t, b.labels)
 					require.Empty(t, b.underlying.Cap())
 					require.Empty(t, b.underlying.Len())
 				})
