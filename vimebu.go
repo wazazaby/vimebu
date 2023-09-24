@@ -9,10 +9,8 @@ import (
 // It's backed by a strings.Builder to minimize memory copying.
 // The zero value is ready to use.
 type Builder struct {
-	labels     map[string]string
-	name       string
 	underlying strings.Builder
-	size       int // size is used as a counter to know how many bytes we need to preallocate to the strings.Builder buffer
+	flLabel    bool // flLabel is set to true when the first label is written, so we can know later on if a comma is needed or not
 }
 
 // Metric creates a new Builder.
@@ -22,37 +20,39 @@ func Metric(name string) *Builder {
 }
 
 // Metric sets the metric name of the Builder.
-// NoOp if called more than once or if the name is empty.
+// NoOp if the name is empty.
 func (b *Builder) Metric(name string) *Builder {
-	if b.name != "" || name == "" {
+	if name == "" {
 		return b
 	}
-	b.size += len(name)
-	b.name = name
+
+	b.underlying.WriteString(name + "{")
+
 	return b
 }
 
 // Label appends a pair of label and label value to the Builder.
-// NoOp if the metric name, the label or label value are empty.
+// NoOp if the label or label value are empty.
 func (b *Builder) Label(label, value string) *Builder {
-	if b.name == "" || label == "" || value == "" {
+	if label == "" || value == "" {
 		return b
 	}
 
-	if b.labels == nil {
-		b.labels = make(map[string]string)
+	if b.flLabel {
+		b.underlying.WriteString("," + label + `="` + value + `"`)
+	} else {
+		b.underlying.WriteString(label + `="` + value + `"`)
+		b.flLabel = true
 	}
 
-	b.size += len(label + value)
-	b.labels[label] = value
 	return b
 }
 
 // Labels appends multiple labels and label values to the Builder.
-// NoOp if the metric name or the map are empty.
+// NoOp if the map is empty.
 // Pairs containing an empty label or label value will be skipped.
 func (b *Builder) Labels(labels map[string]string) *Builder {
-	if b.name == "" || len(labels) == 0 {
+	if len(labels) == 0 {
 		return b
 	}
 
@@ -64,55 +64,14 @@ func (b *Builder) Labels(labels map[string]string) *Builder {
 }
 
 // String builds the metric by returning the accumulated string.
-// Returns an empty string if the metric name is empty.
 func (b *Builder) String() string {
-	if b.name == "" {
-		return ""
-	}
-
-	// Preallocate the underlying builder's buffer.
-	b.underlying.Grow(b.calculatePrealloc())
-
-	b.underlying.WriteString(b.name + "{")
-
-	// Skip writing a comma after the label / value pair on the first iteration.
-	first := true
-	for label, value := range b.labels {
-		if first {
-			first = false
-		} else {
-			b.underlying.WriteString(",")
-		}
-
-		b.underlying.WriteString(label + `="` + value + `"`)
-	}
-
 	b.underlying.WriteString("}")
-
 	return b.underlying.String()
 }
 
 // Reset resets the Builder to be empty.
 func (b *Builder) Reset() {
-	b.name = ""
-	clear(b.labels)
 	b.underlying.Reset()
-	b.size = 0
-}
-
-const (
-	commaLen       = 1 // commaLen is the length in bytes of a comma.
-	curlyBraceslen = 2 // curlyBracesLen is the length in bytes of a pair of curly braces.
-	equalQuotesLen = 3 // equalQuotesLen is the length in bytes of an equal symbol and a pair of double quotes.
-)
-
-// calculatePrealloc calculates the amount of bytes needed for this metric.
-// The result can be used to preallocate the underlying builder's buffer.
-func (b *Builder) calculatePrealloc() int {
-	if n := len(b.labels); n > 0 {
-		return b.size + curlyBraceslen + (n * equalQuotesLen) + n - commaLen
-	}
-	return b.size + curlyBraceslen
 }
 
 var _ fmt.Stringer = (*Builder)(nil)
