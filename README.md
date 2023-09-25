@@ -9,11 +9,11 @@ import (
 )
 
 var (
-    requestsTotalCounter = metrics.NewCounter(
+    requestsTotalCounter = vm.NewCounter(
         vimebu.Metric("request_total").Label("path", "/foo/bar").String(), // request_total{path="/foo/bar"}
     )
 
-    responseSizeHistogram = metrics.NewHistogram(
+    responseSizeHistogram = vm.NewHistogram(
         vimebu.Metric("response_size").String(), // response_size{}
     )
 )
