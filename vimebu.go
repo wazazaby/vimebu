@@ -1,6 +1,7 @@
 package vimebu
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 )
@@ -15,7 +16,7 @@ const (
 // It's backed by a strings.Builder to minimize memory copying.
 // The zero value is ready to use.
 type Builder struct {
-	underlying      strings.Builder
+	underlying      bytes.Buffer
 	flName, flLabel bool
 }
 
