@@ -5,6 +5,12 @@ import (
 	"strings"
 )
 
+const (
+	MetricNameMaxLen = 256  // MetricNameMaxLen is the maximum len in bytes allowed for the metric name.
+	LabelNameMaxLen  = 128  // LabelNameMaxLen is the maximum len in bytes allowed for a label name.
+	LabelValueLen    = 1024 // LabelValueLen is the maximum len in bytes allowed for a label value.
+)
+
 // Builder is used to efficiently build a VictoriaMetrics or Prometheus metric.
 // It's backed by a strings.Builder to minimize memory copying.
 // The zero value is ready to use.
@@ -20,10 +26,19 @@ func Metric(name string) *Builder {
 }
 
 // Metric sets the metric name of the Builder.
-// NoOp if the name is empty.
+// NoOp if called more than once for the same builder or if the name is empty.
+// Panics if the name contains more than [vimebu.MetricNameMaxLen] bytes or if it contains a double quote.
 func (b *Builder) Metric(name string) *Builder {
 	if b.flName || name == "" {
 		return b
+	}
+
+	if len(name) > MetricNameMaxLen {
+		panic("metric name contains too many bytes")
+	}
+
+	if strings.Contains(name, `"`) {
+		panic("metric name should not contain double quotes")
 	}
 
 	b.underlying.WriteString(name + "{")
@@ -34,9 +49,18 @@ func (b *Builder) Metric(name string) *Builder {
 
 // Label appends a pair of label and label value to the Builder.
 // NoOp if the label or label value are empty.
+// Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func (b *Builder) Label(label, value string) *Builder {
 	if !b.flName || label == "" || value == "" {
 		return b
+	}
+
+	if len(label) > LabelNameMaxLen {
+		panic("label name contains too many bytes")
+	}
+
+	if len(value) > LabelValueLen {
+		panic("label value contains too many bytes")
 	}
 
 	if b.flLabel {
