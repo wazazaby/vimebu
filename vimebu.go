@@ -3,6 +3,7 @@ package vimebu
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -65,11 +66,15 @@ func (b *Builder) Label(label, value string) *Builder {
 	}
 
 	if b.flLabel {
-		b.underlying.WriteString("," + label + `="` + value + `"`)
+		b.underlying.WriteString("," + label + "=")
 	} else {
-		b.underlying.WriteString(label + `="` + value + `"`)
+		b.underlying.WriteString(label + "=")
 		b.flLabel = true
 	}
+
+	buf := b.underlying.AvailableBuffer()
+	quoted := strconv.AppendQuote(buf, value)
+	b.underlying.Write(quoted)
 
 	return b
 }
