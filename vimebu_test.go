@@ -7,32 +7,32 @@ import (
 )
 
 func TestBuilder(t *testing.T) {
+	type label struct {
+		name, value string
+	}
 	type input struct {
-		labels map[string]string
 		name   string
+		labels []label
 	}
 	type testCase struct {
 		name     string
-		input    input
 		expected string
+		input    input
 	}
 
 	testCases := []testCase{
 		{
 			name: "metric with labels",
 			input: input{
-				labels: map[string]string{
-					"cluster": "guava",
-					"host":    "1.2.3.4",
-				},
-				name: "cassandra_query_count",
+				labels: []label{{"cluster", "guava"}, {"host", "1.2.3.4"}},
+				name:   "cassandra_query_count",
 			},
 			expected: `cassandra_query_count{cluster="guava",host="1.2.3.4"}`,
 		},
 		{
 			name: "metric with single label",
 			input: input{
-				labels: map[string]string{"type": "std"},
+				labels: []label{{"type", "std"}},
 				name:   "produce_one_total",
 			},
 			expected: `produce_one_total{type="std"}`,
@@ -51,40 +51,35 @@ func TestBuilder(t *testing.T) {
 		{
 			name: "some empty labels and values",
 			input: input{
-				labels: map[string]string{
-					"operation": "",
-					"":          "1.2.3.4",
-					"status":    "OK",
-					"node":      "",
-				},
-				name: "api_http_requests_total",
+				labels: []label{{"operation", ""}, {"", "1.2.3.4"}, {"status", "OK"}, {"node", ""}},
+				name:   "api_http_requests_total",
 			},
 			expected: `api_http_requests_total{status="OK"}`,
+		},
+		{
+			name: "values contain double quotes",
+			input: input{
+				labels: []label{{"error", `something went "horribly" wrong`}, {"path", `some/path/"with"/quo"tes`}},
+				name:   "api_http_requests_total",
+			},
+			expected: `api_http_requests_total{error="something went \"horribly\" wrong",path="some/path/\"with\"/quo\"tes"}`,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Run("one line", func(t *testing.T) {
-				result := Metric(tc.input.name).Labels(tc.input.labels).String()
-				require.Equal(t, tc.expected, result)
-			})
-			t.Run("verbose", func(t *testing.T) {
-				var b Builder
-				b.Metric(tc.input.name)
-				for label, value := range tc.input.labels {
-					b.Label(label, value)
-				}
-				result := b.String()
-				require.Equal(t, tc.expected, result)
+			var b Builder
+			b.Metric(tc.input.name)
+			for _, label := range tc.input.labels {
+				b.Label(label.name, label.value)
+			}
+			result := b.String()
+			require.Equal(t, tc.expected, result)
 
-				t.Run("reset", func(t *testing.T) {
-					b.Reset()
-					require.False(t, b.flName)
-					require.False(t, b.flLabel)
-					require.Empty(t, b.underlying.Cap())
-					require.Empty(t, b.underlying.Len())
-				})
+			t.Run("reset", func(t *testing.T) {
+				b.Reset()
+				require.False(t, b.flName)
+				require.False(t, b.flLabel)
 			})
 		})
 	}
