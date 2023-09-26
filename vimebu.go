@@ -73,21 +73,6 @@ func (b *Builder) Label(label, value string) *Builder {
 	return b
 }
 
-// Labels appends multiple labels and label values to the Builder.
-// NoOp if the map is empty.
-// Pairs containing an empty label or label value will be skipped.
-func (b *Builder) Labels(labels map[string]string) *Builder {
-	if !b.flName || len(labels) == 0 {
-		return b
-	}
-
-	for label, value := range labels {
-		b.Label(label, value)
-	}
-
-	return b
-}
-
 // String builds the metric by returning the accumulated string.
 func (b *Builder) String() string {
 	if !b.flName {
