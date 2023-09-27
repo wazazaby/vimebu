@@ -48,15 +48,15 @@ func (b *Builder) Metric(name string) *Builder {
 	return b
 }
 
-// Label appends a pair of label and label value to the Builder.
-// NoOp if the label or label value are empty.
+// Label appends a pair of label name and label value to the Builder.
+// NoOp if the label name or label value are empty.
 // Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
-func (b *Builder) Label(label, value string) *Builder {
-	if !b.flName || label == "" || value == "" {
+func (b *Builder) Label(name, value string) *Builder {
+	if !b.flName || name == "" || value == "" {
 		return b
 	}
 
-	if len(label) > LabelNameMaxLen {
+	if len(name) > LabelNameMaxLen {
 		panic("label name contains too many bytes")
 	}
 
@@ -65,9 +65,9 @@ func (b *Builder) Label(label, value string) *Builder {
 	}
 
 	if b.flLabel {
-		b.underlying.WriteString("," + label + "=")
+		b.underlying.WriteString("," + name + "=")
 	} else {
-		b.underlying.WriteString(label + "=")
+		b.underlying.WriteString(name + "=")
 		b.flLabel = true
 	}
 
