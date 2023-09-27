@@ -36,3 +36,21 @@ func getCassandraQueryCounter(name string, host net.IP) *vm.Counter {
     return vm.GetOrCreateCounter(metric)
 }
 ```
+
+Or if you want to conditionally add labels.
+```go
+import (
+    "github.com/wazazaby/vimebu"
+    vm "github.com/VictoriaMetrics/metrics"
+)
+
+func getHTTPRequestCounter(host string) *vm.Counter {
+    var b vimebu.Builder
+    b.Metric("api_http_requests_total")
+    if host != "" {
+        b.Label("host", host)
+    }
+    metric := String() // api_http_requests_total{} or api_http_requests_total{host="api.app.com"}
+    return vm.GetOrCreateCounter(metric)
+}
+```
