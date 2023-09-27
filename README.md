@@ -50,7 +50,7 @@ func getHTTPRequestCounter(host string) *vm.Counter {
     if host != "" {
         b.Label("host", host)
     }
-    metric := String() // api_http_requests_total{} or api_http_requests_total{host="api.app.com"}
+    metric := b.String() // api_http_requests_total{} or api_http_requests_total{host="api.app.com"}
     return vm.GetOrCreateCounter(metric)
 }
 ```
