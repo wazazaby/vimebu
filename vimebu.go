@@ -2,7 +2,6 @@ package vimebu
 
 import (
 	"bytes"
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -14,7 +13,7 @@ const (
 )
 
 // Builder is used to efficiently build a VictoriaMetrics or Prometheus metric.
-// It's backed by a strings.Builder to minimize memory copying.
+// It's backed by a bytes.Builder to minimize memory copying.
 // The zero value is ready to use.
 type Builder struct {
 	underlying      bytes.Buffer
@@ -96,9 +95,7 @@ func (b *Builder) Reset() {
 
 // Grow exposes the underlying builder's Grow method for preallocation purposes.
 //
-// Please see [strings.Builder.Grow].
+// Please see [bytes.Builder.Grow].
 func (b *Builder) Grow(n int) {
 	b.underlying.Grow(n)
 }
-
-var _ fmt.Stringer = (*Builder)(nil)
