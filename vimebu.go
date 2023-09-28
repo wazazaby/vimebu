@@ -96,6 +96,7 @@ func (b *Builder) Reset() {
 // Grow exposes the underlying builder's Grow method for preallocation purposes.
 //
 // Please see [bytes.Buffer.Grow].
-func (b *Builder) Grow(n int) {
+func (b *Builder) Grow(n int) *Builder {
 	b.underlying.Grow(n)
+	return b
 }
