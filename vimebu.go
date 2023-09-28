@@ -48,9 +48,11 @@ func (b *Builder) Metric(name string) *Builder {
 	return b
 }
 
-// Label appends a pair of label name and label value to the Builder.
-// NoOp if the label name or label value are empty.
+// Label appends a pair of label name and label value to the Builder. Quotes inside the label value will be escaped.
+//
 // Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
+//
+// NoOp if the label name or label value are empty.
 func (b *Builder) Label(name, value string) *Builder {
 	if !b.flName || name == "" || value == "" {
 		return b
@@ -93,7 +95,9 @@ func (b *Builder) Reset() {
 	b.underlying.Reset()
 }
 
-// Grow exposes the underlying builder's Grow method for preallocation purposes.
+// Grow exposes the underlying buffer's Grow method for preallocation purposes.
+//
+// It can be useful is you already know the size of your metric, including labels.
 //
 // Please see [bytes.Buffer.Grow].
 func (b *Builder) Grow(n int) *Builder {
