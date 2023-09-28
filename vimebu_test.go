@@ -1,6 +1,10 @@
 package vimebu
 
 import (
+	"bytes"
+	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -85,14 +89,71 @@ func TestBuilder(t *testing.T) {
 	}
 }
 
+var (
+	status  = "Bad Request"
+	path    = `some/path/"with"/quo"tes`
+	host    = "1.2.3.4"
+	cluster = "guava"
+)
+
 func BenchmarkBuilder(b *testing.B) {
-	for _, tc := range testCases {
-		for n := 0; n < b.N; n++ {
-			b := Metric(tc.input.name)
-			for _, label := range tc.input.labels {
-				b.Label(label.name, label.value)
-			}
-			_ = b.String()
-		}
+	for n := 0; n < b.N; n++ {
+		_ = Metric("http_request_duration_seconds").
+			Label("status", status).
+			Label("path", path).
+			Label("host", host).
+			Label("cluster", cluster).
+			String()
+	}
+}
+
+func BenchmarkStringsBuilder(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		var b strings.Builder
+		b.WriteString("http_request_duration_seconds{status=" + strconv.Quote(status) + ",path=" + strconv.Quote(path) + ",host=" + strconv.Quote(host) + ",cluster=" + strconv.Quote(cluster) + "}")
+		_ = b.String()
+	}
+}
+
+func BenchmarkBytesBuffer(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		var b bytes.Buffer
+		b.WriteString("http_request_duration_seconds{status=" + strconv.Quote(status) + ",path=" + strconv.Quote(path) + ",host=" + strconv.Quote(host) + ",cluster=" + strconv.Quote(cluster) + "}")
+		_ = b.String()
+	}
+}
+
+func BenchmarkBytesBufferFastQuote(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		var b bytes.Buffer
+		b.WriteString("http_request_duration_seconds{status=")
+		buf := b.AvailableBuffer()
+		quoted := strconv.AppendQuote(buf, status)
+		b.Write(quoted)
+
+		b.WriteString(",path=")
+		buf = b.AvailableBuffer()
+		quoted = strconv.AppendQuote(buf, path)
+		b.Write(quoted)
+
+		b.WriteString(",host=")
+		buf = b.AvailableBuffer()
+		quoted = strconv.AppendQuote(buf, cluster)
+		b.Write(quoted)
+
+		b.WriteString(",cluster=")
+		buf = b.AvailableBuffer()
+		quoted = strconv.AppendQuote(buf, cluster)
+		b.Write(quoted)
+
+		b.WriteString("}")
+
+		_ = b.String()
+	}
+}
+
+func BenchmarkFmtSprintf(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = fmt.Sprintf("http_request_duration_seconds{status=%q,path=%q,host=%q,cluster=%q}", status, path, host, cluster)
 	}
 }
