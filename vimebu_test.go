@@ -73,9 +73,15 @@ func TestBuilder(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var b Builder
+			b.Grow(128)
+			require.Equal(t, 128, b.underlying.Cap())
 			b.Metric(tc.input.name)
 			for _, label := range tc.input.labels {
-				b.Label(label.name, label.value)
+				if strings.Contains(label.value, `"`) {
+					b.LabelAppendQuote(label.name, label.value)
+				} else {
+					b.Label(label.name, label.value)
+				}
 			}
 			result := b.String()
 			require.Equal(t, tc.expected, result)
@@ -100,9 +106,32 @@ func BenchmarkBuilder(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		_ = Metric("http_request_duration_seconds").
 			Label("status", status).
-			Label("path", path).
+			LabelAppendQuote("path", path).
 			Label("host", host).
 			Label("cluster", cluster).
+			String()
+	}
+}
+
+func BenchmarkBuilderNoAppendQuote(b *testing.B) {
+	pathSafe := strconv.Quote(path)
+	for n := 0; n < b.N; n++ {
+		_ = Metric("http_request_duration_seconds").
+			Label("status", status).
+			Label("path", pathSafe).
+			Label("host", host).
+			Label("cluster", cluster).
+			String()
+	}
+}
+
+func BenchmarkBuilderAppendQuote(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = Metric("http_request_duration_seconds").
+			LabelAppendQuote("status", status).
+			LabelAppendQuote("path", path).
+			LabelAppendQuote("host", host).
+			LabelAppendQuote("cluster", cluster).
 			String()
 	}
 }

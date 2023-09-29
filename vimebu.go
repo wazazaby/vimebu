@@ -15,6 +15,7 @@ const (
 	rightBracketByte = byte('}')
 	commaByte        = byte(',')
 	equalByte        = byte('=')
+	doubleQuotesByte = byte('"')
 )
 
 // Builder is used to efficiently build a VictoriaMetrics or Prometheus metric.
@@ -57,12 +58,29 @@ func (b *Builder) Metric(name string) *Builder {
 	return b
 }
 
-// Label appends a pair of label name and label value to the Builder. Quotes inside the label value will be escaped.
+// LabelAppendQuote appends a pair of label name and label value to the Builder. Quotes inside the label value will be escaped.
+//
+// Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
+//
+// NoOp if the label name or label value are empty.
+func (b *Builder) LabelAppendQuote(name, value string) *Builder {
+	appendQuote := true
+	return b.label(name, value, appendQuote)
+}
+
+// Label appends a pair of label name and label value to the Builder.
+// Unlike [vimebu.Builder.LabelAppendQuote], quotes inside the label value will not be escaped.
+// It's better suited for a label value where you control the input (either it is already sanitized, or it comes from a const or an enum for example).
 //
 // Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 //
 // NoOp if the label name or label value are empty.
 func (b *Builder) Label(name, value string) *Builder {
+	appendQuote := false
+	return b.label(name, value, appendQuote)
+}
+
+func (b *Builder) label(name, value string, appendQuote bool) *Builder {
 	if !b.flName || name == "" || value == "" {
 		return b
 	}
@@ -75,17 +93,23 @@ func (b *Builder) Label(name, value string) *Builder {
 		panic("label value contains too many bytes")
 	}
 
-	if b.flLabel {
+	if b.flLabel { // If we already wrote a label, start writing commas before label names.
 		b.underlying.WriteByte(commaByte)
-	} else {
+	} else { // Otherwise, mark flag as true for next pass.
 		b.flLabel = true
 	}
 
 	b.underlying.WriteString(name)
 	b.underlying.WriteByte(equalByte)
-	buf := b.underlying.AvailableBuffer()
-	quoted := strconv.AppendQuote(buf, value)
-	b.underlying.Write(quoted)
+	if appendQuote { // If we need to escape quotes in the label value.
+		buf := b.underlying.AvailableBuffer()
+		quoted := strconv.AppendQuote(buf, value) // Append directly to a buffer with b.underlying.Available() cap as it's the fastest option available.
+		b.underlying.Write(quoted)
+	} else { // Otherwise, just wrap the label value inside a pair of double quotes.
+		b.underlying.WriteByte(doubleQuotesByte)
+		b.underlying.WriteString(value)
+		b.underlying.WriteByte(doubleQuotesByte)
+	}
 
 	return b
 }
