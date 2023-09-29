@@ -1,5 +1,5 @@
 # vimebu
-Vimebu is a small library that provides a builder to create Prometheus & VictoriaMetrics compatible metrics.
+Vimebu is a small library that provides a builder to create VictoriaMetrics compatible metrics.
 
 ### Usage
 ```go
