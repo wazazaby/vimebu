@@ -113,7 +113,7 @@ func BenchmarkBuilder(b *testing.B) {
 	}
 }
 
-func BenchmarkBuilderNoAppendQuote(b *testing.B) {
+func BenchmarkBuilderAppendQuoteNone(b *testing.B) {
 	pathSafe := strconv.Quote(path)
 	for n := 0; n < b.N; n++ {
 		_ = Metric("http_request_duration_seconds").
@@ -125,7 +125,7 @@ func BenchmarkBuilderNoAppendQuote(b *testing.B) {
 	}
 }
 
-func BenchmarkBuilderAppendQuote(b *testing.B) {
+func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		_ = Metric("http_request_duration_seconds").
 			LabelAppendQuote("status", status).
@@ -139,7 +139,15 @@ func BenchmarkBuilderAppendQuote(b *testing.B) {
 func BenchmarkStringsBuilder(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		var b strings.Builder
-		b.WriteString("http_request_duration_seconds{status=" + strconv.Quote(status) + ",path=" + strconv.Quote(path) + ",host=" + strconv.Quote(host) + ",cluster=" + strconv.Quote(cluster) + "}")
+		b.WriteString(`http_request_duration_seconds{status="`)
+		b.WriteString(status)
+		b.WriteString(`",path=`)
+		b.WriteString(strconv.Quote(path))
+		b.WriteString(`,host="`)
+		b.WriteString(host)
+		b.WriteString(`",cluster="`)
+		b.WriteString(cluster)
+		b.WriteString(`"}`)
 		_ = b.String()
 	}
 }
@@ -147,7 +155,15 @@ func BenchmarkStringsBuilder(b *testing.B) {
 func BenchmarkBytesBuffer(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		var b bytes.Buffer
-		b.WriteString("http_request_duration_seconds{status=" + strconv.Quote(status) + ",path=" + strconv.Quote(path) + ",host=" + strconv.Quote(host) + ",cluster=" + strconv.Quote(cluster) + "}")
+		b.WriteString(`http_request_duration_seconds{status="`)
+		b.WriteString(status)
+		b.WriteString(`",path=`)
+		b.WriteString(strconv.Quote(path))
+		b.WriteString(`,host="`)
+		b.WriteString(host)
+		b.WriteString(`",cluster="`)
+		b.WriteString(cluster)
+		b.WriteString(`"}`)
 		_ = b.String()
 	}
 }
@@ -155,27 +171,19 @@ func BenchmarkBytesBuffer(b *testing.B) {
 func BenchmarkBytesBufferFastQuote(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		var b bytes.Buffer
-		b.WriteString("http_request_duration_seconds{status=")
+		b.WriteString(`http_request_duration_seconds{status="`)
+		b.WriteString(status)
+		b.WriteString(`",path=`)
+
 		buf := b.AvailableBuffer()
-		quoted := strconv.AppendQuote(buf, status)
+		quoted := strconv.AppendQuote(buf, path)
 		b.Write(quoted)
 
-		b.WriteString(",path=")
-		buf = b.AvailableBuffer()
-		quoted = strconv.AppendQuote(buf, path)
-		b.Write(quoted)
-
-		b.WriteString(",host=")
-		buf = b.AvailableBuffer()
-		quoted = strconv.AppendQuote(buf, cluster)
-		b.Write(quoted)
-
-		b.WriteString(",cluster=")
-		buf = b.AvailableBuffer()
-		quoted = strconv.AppendQuote(buf, cluster)
-		b.Write(quoted)
-
-		b.WriteString("}")
+		b.WriteString(`,host="`)
+		b.WriteString(host)
+		b.WriteString(`",cluster="`)
+		b.WriteString(cluster)
+		b.WriteString(`"}`)
 
 		_ = b.String()
 	}
