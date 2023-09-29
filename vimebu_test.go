@@ -171,26 +171,28 @@ func BenchmarkBytesBuffer(b *testing.B) {
 	}
 }
 
-func BenchmarkBytesBufferFastQuote(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		var builder bytes.Buffer
-		builder.WriteString(`http_request_duration_seconds{status="`)
-		builder.WriteString(status)
-		builder.WriteString(`",path=`)
+// Commented for now as bytes.Buffer.AvailableBuffer
+// is not available in go 1.20
+// func BenchmarkBytesBufferFastQuote(b *testing.B) {
+// 	for n := 0; n < b.N; n++ {
+// 		var builder bytes.Buffer
+// 		builder.WriteString(`http_request_duration_seconds{status="`)
+// 		builder.WriteString(status)
+// 		builder.WriteString(`",path=`)
 
-		buf := builder.AvailableBuffer()
-		quoted := strconv.AppendQuote(buf, path)
-		builder.Write(quoted)
+// 		buf := builder.AvailableBuffer()
+// 		quoted := strconv.AppendQuote(buf, path)
+// 		builder.Write(quoted)
 
-		builder.WriteString(`,host="`)
-		builder.WriteString(host)
-		builder.WriteString(`",cluster="`)
-		builder.WriteString(cluster)
-		builder.WriteString(`"}`)
+// 		builder.WriteString(`,host="`)
+// 		builder.WriteString(host)
+// 		builder.WriteString(`",cluster="`)
+// 		builder.WriteString(cluster)
+// 		builder.WriteString(`"}`)
 
-		_ = builder.String()
-	}
-}
+// 		_ = builder.String()
+// 	}
+// }
 
 func BenchmarkFmtSprintf(b *testing.B) {
 	for n := 0; n < b.N; n++ {
