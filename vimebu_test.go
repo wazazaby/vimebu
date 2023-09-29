@@ -104,7 +104,8 @@ var (
 
 func BenchmarkBuilder(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = Metric("http_request_duration_seconds").
+		var builder Builder
+		_ = builder.Metric("http_request_duration_seconds").
 			Label("status", status).
 			LabelAppendQuote("path", path).
 			Label("host", host).
@@ -116,7 +117,8 @@ func BenchmarkBuilder(b *testing.B) {
 func BenchmarkBuilderAppendQuoteNone(b *testing.B) {
 	pathSafe := strconv.Quote(path)
 	for n := 0; n < b.N; n++ {
-		_ = Metric("http_request_duration_seconds").
+		var builder Builder
+		_ = builder.Metric("http_request_duration_seconds").
 			Label("status", status).
 			Label("path", pathSafe).
 			Label("host", host).
@@ -127,7 +129,8 @@ func BenchmarkBuilderAppendQuoteNone(b *testing.B) {
 
 func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = Metric("http_request_duration_seconds").
+		var builder Builder
+		_ = builder.Metric("http_request_duration_seconds").
 			LabelAppendQuote("status", status).
 			LabelAppendQuote("path", path).
 			LabelAppendQuote("host", host).
