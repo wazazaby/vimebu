@@ -141,54 +141,54 @@ func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
 
 func BenchmarkStringsBuilder(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		var b strings.Builder
-		b.WriteString(`http_request_duration_seconds{status="`)
-		b.WriteString(status)
-		b.WriteString(`",path=`)
-		b.WriteString(strconv.Quote(path))
-		b.WriteString(`,host="`)
-		b.WriteString(host)
-		b.WriteString(`",cluster="`)
-		b.WriteString(cluster)
-		b.WriteString(`"}`)
-		_ = b.String()
+		var builder strings.Builder
+		builder.WriteString(`http_request_duration_seconds{status="`)
+		builder.WriteString(status)
+		builder.WriteString(`",path=`)
+		builder.WriteString(strconv.Quote(path))
+		builder.WriteString(`,host="`)
+		builder.WriteString(host)
+		builder.WriteString(`",cluster="`)
+		builder.WriteString(cluster)
+		builder.WriteString(`"}`)
+		_ = builder.String()
 	}
 }
 
 func BenchmarkBytesBuffer(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		var b bytes.Buffer
-		b.WriteString(`http_request_duration_seconds{status="`)
-		b.WriteString(status)
-		b.WriteString(`",path=`)
-		b.WriteString(strconv.Quote(path))
-		b.WriteString(`,host="`)
-		b.WriteString(host)
-		b.WriteString(`",cluster="`)
-		b.WriteString(cluster)
-		b.WriteString(`"}`)
-		_ = b.String()
+		var builder bytes.Buffer
+		builder.WriteString(`http_request_duration_seconds{status="`)
+		builder.WriteString(status)
+		builder.WriteString(`",path=`)
+		builder.WriteString(strconv.Quote(path))
+		builder.WriteString(`,host="`)
+		builder.WriteString(host)
+		builder.WriteString(`",cluster="`)
+		builder.WriteString(cluster)
+		builder.WriteString(`"}`)
+		_ = builder.String()
 	}
 }
 
 func BenchmarkBytesBufferFastQuote(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		var b bytes.Buffer
-		b.WriteString(`http_request_duration_seconds{status="`)
-		b.WriteString(status)
-		b.WriteString(`",path=`)
+		var builder bytes.Buffer
+		builder.WriteString(`http_request_duration_seconds{status="`)
+		builder.WriteString(status)
+		builder.WriteString(`",path=`)
 
-		buf := b.AvailableBuffer()
+		buf := builder.AvailableBuffer()
 		quoted := strconv.AppendQuote(buf, path)
-		b.Write(quoted)
+		builder.Write(quoted)
 
-		b.WriteString(`,host="`)
-		b.WriteString(host)
-		b.WriteString(`",cluster="`)
-		b.WriteString(cluster)
-		b.WriteString(`"}`)
+		builder.WriteString(`,host="`)
+		builder.WriteString(host)
+		builder.WriteString(`",cluster="`)
+		builder.WriteString(cluster)
+		builder.WriteString(`"}`)
 
-		_ = b.String()
+		_ = builder.String()
 	}
 }
 
