@@ -1,7 +1,6 @@
 package vimebu
 
 import (
-	"bytes"
 	"strconv"
 	"strings"
 )
@@ -23,7 +22,7 @@ const (
 //
 // The zero value is ready to use.
 type Builder struct {
-	underlying      bytes.Buffer
+	underlying      strings.Builder
 	flName, flLabel bool
 }
 
@@ -102,9 +101,7 @@ func (b *Builder) label(name, value string, appendQuote bool) *Builder {
 	b.underlying.WriteString(name)
 	b.underlying.WriteByte(equalByte)
 	if appendQuote { // If we need to escape quotes in the label value.
-		buf := b.underlying.AvailableBuffer()
-		quoted := strconv.AppendQuote(buf, value) // Append directly to a buffer with b.underlying.Available() cap as it's the fastest option available.
-		b.underlying.Write(quoted)
+		b.underlying.WriteString(strconv.Quote(value))
 	} else { // Otherwise, just wrap the label value inside a pair of double quotes.
 		b.underlying.WriteByte(doubleQuotesByte)
 		b.underlying.WriteString(value)
