@@ -17,8 +17,8 @@ const (
 	doubleQuotesByte = byte('"')
 )
 
-// Builder is used to efficiently build a VictoriaMetrics or Prometheus metric.
-// It's backed by a bytes.Buffer to minimize memory copying.
+// Builder is used to efficiently build a VictoriaMetrics metric.
+// It's backed by a strings.Builder to minimize memory copying.
 //
 // The zero value is ready to use.
 type Builder struct {
@@ -130,7 +130,7 @@ func (b *Builder) Reset() {
 //
 // It can be useful is you already know the size of your metric, including labels.
 //
-// Please see [bytes.Buffer.Grow].
+// Please see [strings.Builder.Grow].
 func (b *Builder) Grow(n int) *Builder {
 	b.underlying.Grow(n)
 	return b
