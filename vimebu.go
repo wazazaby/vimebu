@@ -57,29 +57,29 @@ func (b *Builder) Metric(name string) *Builder {
 	return b
 }
 
-// LabelAppendQuote appends a pair of label name and label value to the Builder. Quotes inside the label value will be escaped.
+// LabelQuote appends a pair of label name and label value to the Builder. Quotes inside the label value will be escaped.
 //
 // Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 //
 // NoOp if the label name or label value are empty.
-func (b *Builder) LabelAppendQuote(name, value string) *Builder {
-	appendQuote := true
-	return b.label(name, value, appendQuote)
+func (b *Builder) LabelQuote(name, value string) *Builder {
+	escapeQuote := true
+	return b.label(name, value, escapeQuote)
 }
 
 // Label appends a pair of label name and label value to the Builder.
-// Unlike [vimebu.Builder.LabelAppendQuote], quotes inside the label value will not be escaped.
+// Unlike [vimebu.Builder.LabelQuote], quotes inside the label value will not be escaped.
 // It's better suited for a label value where you control the input (either it is already sanitized, or it comes from a const or an enum for example).
 //
 // Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 //
 // NoOp if the label name or label value are empty.
 func (b *Builder) Label(name, value string) *Builder {
-	appendQuote := false
-	return b.label(name, value, appendQuote)
+	escapeQuote := false
+	return b.label(name, value, escapeQuote)
 }
 
-func (b *Builder) label(name, value string, appendQuote bool) *Builder {
+func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
 	if !b.flName || name == "" || value == "" {
 		return b
 	}
@@ -100,7 +100,7 @@ func (b *Builder) label(name, value string, appendQuote bool) *Builder {
 
 	b.underlying.WriteString(name)
 	b.underlying.WriteByte(equalByte)
-	if appendQuote { // If we need to escape quotes in the label value.
+	if escapeQuote { // If we need to escape quotes in the label value.
 		b.underlying.WriteString(strconv.Quote(value))
 	} else { // Otherwise, just wrap the label value inside a pair of double quotes.
 		b.underlying.WriteByte(doubleQuotesByte)
