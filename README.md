@@ -54,3 +54,19 @@ func getHTTPRequestCounter(host string) *vm.Counter {
     return vm.GetOrCreateCounter(metric)
 }
 ```
+
+Vimebu also exposes a way to escape quotes on label values you don't control using `Builder.LabelAppendQuote`.
+```go
+import (
+    "github.com/wazazaby/vimebu"
+    vm "github.com/VictoriaMetrics/metrics"
+)
+
+func getHTTPRequestCounter(path string) *vm.Counter {
+    metric := vimebu.
+        Metric("api_http_requests_total").
+        LabelAppendQuote("path", path).
+        String() // api_http_requests_total{path="some/bro\"ken/path"}
+    return vm.GetOrCreateCounter(metric)
+}
+```
