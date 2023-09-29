@@ -78,7 +78,7 @@ func TestBuilder(t *testing.T) {
 			b.Metric(tc.input.name)
 			for _, label := range tc.input.labels {
 				if strings.Contains(label.value, `"`) {
-					b.LabelAppendQuote(label.name, label.value)
+					b.LabelQuote(label.name, label.value)
 				} else {
 					b.Label(label.name, label.value)
 				}
@@ -107,7 +107,7 @@ func BenchmarkBuilder(b *testing.B) {
 		var builder Builder
 		_ = builder.Metric("http_request_duration_seconds").
 			Label("status", status).
-			LabelAppendQuote("path", path).
+			LabelQuote("path", path).
 			Label("host", host).
 			Label("cluster", cluster).
 			String()
@@ -131,10 +131,10 @@ func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		var builder Builder
 		_ = builder.Metric("http_request_duration_seconds").
-			LabelAppendQuote("status", status).
-			LabelAppendQuote("path", path).
-			LabelAppendQuote("host", host).
-			LabelAppendQuote("cluster", cluster).
+			LabelQuote("status", status).
+			LabelQuote("path", path).
+			LabelQuote("host", host).
+			LabelQuote("cluster", cluster).
 			String()
 	}
 }
