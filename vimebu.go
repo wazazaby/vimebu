@@ -100,7 +100,7 @@ func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
 
 	b.underlying.WriteString(name)
 	b.underlying.WriteByte(equalByte)
-	if escapeQuote { // If we need to escape quotes in the label value.
+	if escapeQuote && strings.Contains(value, `"`) { // If we need to escape quotes in the label value.
 		b.underlying.WriteString(strconv.Quote(value))
 	} else { // Otherwise, just wrap the label value inside a pair of double quotes.
 		b.underlying.WriteByte(doubleQuotesByte)
