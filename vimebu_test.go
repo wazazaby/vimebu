@@ -229,6 +229,6 @@ func BenchmarkBytesBuffer(b *testing.B) {
 
 func BenchmarkFmtSprintf(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = fmt.Sprintf("http_request_duration_seconds{status=%q,path=%q,host=%q,cluster=%q}", status, path, host, cluster)
+		_ = fmt.Sprintf(`http_request_duration_seconds{status="%s",path=%q,host="%s",cluster="%s"}`, status, path, host, cluster)
 	}
 }
