@@ -1,8 +1,6 @@
 package vimebu
 
 import (
-	"bytes"
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -209,66 +207,5 @@ func BenchmarkBuilderTestCases(b *testing.B) {
 				_ = builder.String()
 			}
 		})
-	}
-}
-
-func BenchmarkStringsBuilder(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		var builder strings.Builder
-		builder.WriteString(`http_request_duration_seconds{status="`)
-		builder.WriteString(status)
-		builder.WriteString(`",path=`)
-		builder.WriteString(strconv.Quote(path))
-		builder.WriteString(`,host="`)
-		builder.WriteString(host)
-		builder.WriteString(`",cluster="`)
-		builder.WriteString(cluster)
-		builder.WriteString(`"}`)
-		_ = builder.String()
-	}
-}
-
-func BenchmarkBytesBuffer(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		var builder bytes.Buffer
-		builder.WriteString(`http_request_duration_seconds{status="`)
-		builder.WriteString(status)
-		builder.WriteString(`",path=`)
-		builder.WriteString(strconv.Quote(path))
-		builder.WriteString(`,host="`)
-		builder.WriteString(host)
-		builder.WriteString(`",cluster="`)
-		builder.WriteString(cluster)
-		builder.WriteString(`"}`)
-		_ = builder.String()
-	}
-}
-
-// Commented for now as bytes.Buffer.AvailableBuffer
-// is not available in go 1.20
-// func BenchmarkBytesBufferFastQuote(b *testing.B) {
-// 	for n := 0; n < b.N; n++ {
-// 		var builder bytes.Buffer
-// 		builder.WriteString(`http_request_duration_seconds{status="`)
-// 		builder.WriteString(status)
-// 		builder.WriteString(`",path=`)
-
-// 		buf := builder.AvailableBuffer()
-// 		quoted := strconv.AppendQuote(buf, path)
-// 		builder.Write(quoted)
-
-// 		builder.WriteString(`,host="`)
-// 		builder.WriteString(host)
-// 		builder.WriteString(`",cluster="`)
-// 		builder.WriteString(cluster)
-// 		builder.WriteString(`"}`)
-
-// 		_ = builder.String()
-// 	}
-// }
-
-func BenchmarkFmtSprintf(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		_ = fmt.Sprintf(`http_request_duration_seconds{status="%s",path=%q,host="%s",cluster="%s"}`, status, path, host, cluster)
 	}
 }
