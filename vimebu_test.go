@@ -19,9 +19,10 @@ type input struct {
 	labels []label
 }
 type testCase struct {
-	name     string
-	expected string
-	input    input
+	name      string
+	expected  string
+	input     input
+	mustPanic bool
 }
 
 var testCases = []testCase{
@@ -81,30 +82,69 @@ var testCases = []testCase{
 		},
 		expected: `api_http_requests_total{status="Internal Server Error",error="something went \"horribly\" wrong",host="1.2.3.4",path="some/path/\"with\"/quo\"tes"}`,
 	},
+	{
+		name: "metric name contains too many bytes",
+		input: input{
+			name: strings.Repeat("b", 512),
+		},
+		mustPanic: true,
+	},
+	{
+		name: "label name contains too many bytes",
+		input: input{
+			name:   "api_http_requests_total",
+			labels: []label{{strings.Repeat("b", 256), "test", false}},
+		},
+		mustPanic: true,
+	},
+	{
+		name: "label value contains too many bytes",
+		input: input{
+			name:   "api_http_requests_total",
+			labels: []label{{"test", strings.Repeat("b", 2048), false}},
+		},
+		mustPanic: true,
+	},
+}
+
+func handleTestCase(t *testing.T, tc testCase) {
+	var b Builder
+
+	b.Grow(128)
+	require.Equal(t, 128, b.underlying.Cap())
+
+	b.Metric(tc.input.name)
+
+	for _, label := range tc.input.labels {
+		if label.shouldQuote {
+			b.LabelQuote(label.name, label.value)
+		} else {
+			b.Label(label.name, label.value)
+		}
+	}
+
+	result := b.String()
+	require.Equal(t, tc.expected, result)
+
+	t.Run("reset", func(t *testing.T) {
+		b.Reset()
+		require.False(t, b.flName)
+		require.False(t, b.flLabel)
+	})
 }
 
 func TestBuilder(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var b Builder
-			b.Grow(128)
-			require.Equal(t, 128, b.underlying.Cap())
-			b.Metric(tc.input.name)
-			for _, label := range tc.input.labels {
-				if label.shouldQuote {
-					b.LabelQuote(label.name, label.value)
-				} else {
-					b.Label(label.name, label.value)
-				}
+			if tc.mustPanic {
+				require.Panics(t, func() {
+					handleTestCase(t, tc)
+				})
+			} else {
+				require.NotPanics(t, func() {
+					handleTestCase(t, tc)
+				})
 			}
-			result := b.String()
-			require.Equal(t, tc.expected, result)
-
-			t.Run("reset", func(t *testing.T) {
-				b.Reset()
-				require.False(t, b.flName)
-				require.False(t, b.flLabel)
-			})
 		})
 	}
 }
