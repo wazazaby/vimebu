@@ -194,7 +194,7 @@ func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
 func BenchmarkBuilderTestCases(b *testing.B) {
 	for _, tc := range testCases {
 		if tc.mustPanic {
-			b.Skip()
+			continue
 		}
 		b.Run(tc.name, func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
