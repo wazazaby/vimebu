@@ -29,7 +29,7 @@ func Metric(name string) *Builder {
 
 // Metric sets the metric name of the Builder.
 //
-// NoOp if called more than once for the same builder or if the name is empty.
+// NoOp if called more than once for the same builder.
 //
 // Panics if the name is empty, contains more than [vimebu.MetricNameMaxLen] bytes or if it contains a double quote.
 func (b *Builder) Metric(name string) *Builder {
