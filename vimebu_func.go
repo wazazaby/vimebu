@@ -5,10 +5,13 @@ import (
 	"strings"
 )
 
-// LabelCallback TODO:
 type LabelCallback func() (name, value string, escapeQuote bool)
 
-// WithLabel TODO:
+// WithLabel appends a pair of label name and label value to the builder.
+// Unlike [vimebu.WithLabelQuote], quotes inside the label value will not be escaped.
+// It's better suited for a label value where you control the input (either it is already sanitized, or it comes from a const or an enum for example).
+//
+// Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func WithLabel(name, value string) LabelCallback {
 	if len(name) > LabelNameMaxLen {
 		panic("label name contains too many bytes")
@@ -23,7 +26,10 @@ func WithLabel(name, value string) LabelCallback {
 	}
 }
 
-// WithLabelCond TODO:
+// WithLabelCond is a wrapper around [vimebu.WithLabel].
+// It allows you to conditionally add a label depending on the output of a predicate function.
+//
+// Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func WithLabelCond(fn func() bool, name, value string) LabelCallback {
 	if fn() {
 		return WithLabel(name, value)
@@ -31,7 +37,9 @@ func WithLabelCond(fn func() bool, name, value string) LabelCallback {
 	return WithLabel("", "")
 }
 
-// WithLabelQuote TODO:
+// WithLabelQuote appends a pair of label name and label value to the builder. Quotes inside the label value will be escaped.
+//
+// Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func WithLabelQuote(name, value string) LabelCallback {
 	if len(name) > LabelNameMaxLen {
 		panic("label name contains too many bytes")
@@ -46,7 +54,10 @@ func WithLabelQuote(name, value string) LabelCallback {
 	}
 }
 
-// WithLabelQuoteCond TODO:
+// WithLabelQuoteCond is a wrapper around [vimebu.WithLabelQuote].
+// It allows you to conditionally add a label depending on the output of a predicate function.
+//
+// Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func WithLabelQuoteCond(fn func() bool, name, value string) LabelCallback {
 	if fn() {
 		return WithLabelQuote(name, value)
@@ -55,6 +66,9 @@ func WithLabelQuoteCond(fn func() bool, name, value string) LabelCallback {
 }
 
 // BuilderFunc is used to efficiently build a VictoriaMetrics metric.
+// It's backed by a bytes.Buffer to minimize memory copying.
+//
+// Panics if the name is empty, contains more than [vimebu.MetricNameMaxLen] bytes or if it contains a double quote.
 func BuilderFunc(name string, labels ...LabelCallback) string {
 	ln := len(name)
 	if ln == 0 {
