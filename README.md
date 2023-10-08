@@ -82,7 +82,9 @@ import (
 
 var (
     requestsTotalCounter = vm.NewCounter(
-        vimebu.BuilderFunc("request_total", vimebu.WithLabel("path", "/foo/bar")), // request_total{path="/foo/bar"}
+        vimebu.BuilderFunc("request_total",
+            vimebu.WithLabel("path", "/foo/bar"),
+        ), // request_total{path="/foo/bar"}
     )
 
     responseSizeHistogram = vm.NewHistogram(
@@ -128,8 +130,7 @@ import (
 )
 
 func getHTTPRequestCounter(path string) *vm.Counter {
-    metric := vimebu.BuilderFunc(
-        "api_http_requests_total",
+    metric := vimebu.BuilderFunc("api_http_requests_total",
         vimebu.WithLabelQuote("path", path"),
     )  // api_http_requests_total{path="some/bro\"ken/path"}
     return vm.GetOrCreateCounter(metric)
