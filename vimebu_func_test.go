@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func handleTestCaseFn(t *testing.T, tc testCase) {
+func handleTestCaseFunc(t *testing.T, tc testCase) {
 	labels := make([]LabelCallback, 0, len(tc.input.labels))
 
 	for _, label := range tc.input.labels {
@@ -21,16 +21,16 @@ func handleTestCaseFn(t *testing.T, tc testCase) {
 	require.Equal(t, tc.expected, result)
 }
 
-func TestBuilderFn(t *testing.T) {
+func TestBuilderFunc(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.mustPanic {
 				require.Panics(t, func() {
-					handleTestCaseFn(t, tc)
+					handleTestCaseFunc(t, tc)
 				})
 			} else {
 				require.NotPanics(t, func() {
-					handleTestCaseFn(t, tc)
+					handleTestCaseFunc(t, tc)
 				})
 			}
 		})
@@ -47,7 +47,7 @@ func TestLabelCond(t *testing.T) {
 	require.Equal(t, `test_cond{should="appear",present="/and/\"quoted\""}`, result)
 }
 
-func BenchmarkBuilderFnTestCases(b *testing.B) {
+func BenchmarkBuilderFuncTestCases(b *testing.B) {
 	for _, tc := range testCases {
 		if tc.mustPanic { // Skip test cases that panics as they will break the benchmarks.
 			continue
