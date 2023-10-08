@@ -11,7 +11,10 @@ import (
 
 var (
     requestsTotalCounter = vm.NewCounter(
-        vimebu.Metric("request_total").Label("path", "/foo/bar").String(), // request_total{path="/foo/bar"}
+        vimebu.
+            Metric("request_total").
+            Label("path", "/foo/bar").
+            String(), // request_total{path="/foo/bar"}
     )
 
     responseSizeHistogram = vm.NewHistogram(
