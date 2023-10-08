@@ -1,8 +1,10 @@
 package vimebu
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const (
@@ -17,13 +19,40 @@ const (
 	doubleQuotesByte = byte('"')
 )
 
+// bytesBufferPool is a simple pool to create or retrieve a [bytes.Buffer].
+var bytesBufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
+
+// getBuffer acquires a [bytes.Buffer] from the pool.
+func getBuffer() *bytes.Buffer {
+	return bytesBufferPool.Get().(*bytes.Buffer)
+}
+
+// putBuffer resets and returns a [bytes.Buffer] to the pool.
+func putBuffer(b *bytes.Buffer) {
+	if b == nil {
+		return
+	}
+	b.Reset()
+	bytesBufferPool.Put(b)
+}
+
 // Builder is used to efficiently build a VictoriaMetrics metric.
-// It's backed by a strings.Builder to minimize memory copying.
+// It's backed by a bytes.Buffer to minimize memory copying.
 //
 // The zero value is ready to use.
 type Builder struct {
-	underlying      strings.Builder
+	underlying      *bytes.Buffer
 	flName, flLabel bool
+}
+
+func (b *Builder) init() {
+	if b.underlying == nil {
+		b.underlying = getBuffer()
+	}
 }
 
 // Metric creates a new Builder.
@@ -50,6 +79,8 @@ func (b *Builder) Metric(name string) *Builder {
 		panic("metric name should not contain double quotes")
 	}
 
+	b.init()
+
 	b.underlying.WriteString(name)
 	b.underlying.WriteByte(leftBracketByte)
 	b.flName = true
@@ -63,8 +94,7 @@ func (b *Builder) Metric(name string) *Builder {
 //
 // NoOp if the label name or label value are empty.
 func (b *Builder) LabelQuote(name, value string) *Builder {
-	escapeQuote := true
-	return b.label(name, value, escapeQuote)
+	return b.label(name, value, true)
 }
 
 // Label appends a pair of label name and label value to the Builder.
@@ -75,8 +105,7 @@ func (b *Builder) LabelQuote(name, value string) *Builder {
 //
 // NoOp if the label name or label value are empty.
 func (b *Builder) Label(name, value string) *Builder {
-	escapeQuote := false
-	return b.label(name, value, escapeQuote)
+	return b.label(name, value, false)
 }
 
 func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
@@ -101,7 +130,9 @@ func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
 	b.underlying.WriteString(name)
 	b.underlying.WriteByte(equalByte)
 	if escapeQuote && strings.Contains(value, `"`) { // If we need to escape quotes in the label value.
-		b.underlying.WriteString(strconv.Quote(value))
+		buf := b.underlying.AvailableBuffer()
+		quoted := strconv.AppendQuote(buf, value)
+		b.underlying.Write(quoted)
 	} else { // Otherwise, just wrap the label value inside a pair of double quotes.
 		b.underlying.WriteByte(doubleQuotesByte)
 		b.underlying.WriteString(value)
@@ -113,9 +144,11 @@ func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
 
 // String builds the metric by returning the accumulated string.
 func (b *Builder) String() string {
+	defer putBuffer(b.underlying)
 	if !b.flName {
 		return ""
 	}
+
 	b.underlying.WriteByte(rightBracketByte)
 	return b.underlying.String()
 }
@@ -123,15 +156,16 @@ func (b *Builder) String() string {
 // Reset resets the Builder to be empty.
 func (b *Builder) Reset() {
 	b.flName, b.flLabel = false, false
-	b.underlying.Reset()
+	putBuffer(b.underlying)
 }
 
 // Grow exposes the underlying buffer's Grow method for preallocation purposes.
 //
 // It can be useful is you already know the size of your metric, including labels.
 //
-// Please see [strings.Builder.Grow].
+// Please see [bytes.Buffer.Grow].
 func (b *Builder) Grow(n int) *Builder {
+	b.init()
 	b.underlying.Grow(n)
 	return b
 }

@@ -109,7 +109,7 @@ func handleTestCase(t *testing.T, tc testCase) {
 	var b Builder
 
 	b.Grow(128)
-	require.Equal(t, 128, b.underlying.Cap())
+	require.GreaterOrEqual(t, b.underlying.Cap(), 128)
 
 	b.Metric(tc.input.name)
 
