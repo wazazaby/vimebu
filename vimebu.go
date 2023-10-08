@@ -65,13 +65,18 @@ func Metric(name string) *Builder {
 //
 // NoOp if called more than once for the same builder or if the name is empty.
 //
-// Panics if the name contains more than [vimebu.MetricNameMaxLen] bytes or if it contains a double quote.
+// Panics if the name is empty, contains more than [vimebu.MetricNameMaxLen] bytes or if it contains a double quote.
 func (b *Builder) Metric(name string) *Builder {
-	if b.flName || name == "" {
+	if b.flName {
 		return b
 	}
 
-	if len(name) > MetricNameMaxLen {
+	ln := len(name)
+	if ln == 0 {
+		panic("metric name must not be empty")
+	}
+
+	if ln > MetricNameMaxLen {
 		panic("metric name contains too many bytes")
 	}
 

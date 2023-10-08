@@ -48,8 +48,8 @@ var testCases = []testCase{
 		expected: `http_request_duration_seconds{}`,
 	},
 	{
-		name:     "no name",
-		expected: ``,
+		name:      "no name",
+		mustPanic: true,
 	},
 	{
 		name: "some empty labels and values",
