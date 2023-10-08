@@ -61,7 +61,7 @@ func (b *Builder) Metric(name string) *Builder {
 
 // LabelQuote appends a pair of label name and label value to the Builder. Quotes inside the label value will be escaped.
 //
-// Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
+// Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 //
 // NoOp if the label name or label value are empty.
 func (b *Builder) LabelQuote(name, value string) *Builder {
@@ -72,7 +72,7 @@ func (b *Builder) LabelQuote(name, value string) *Builder {
 // Unlike [vimebu.Builder.LabelQuote], quotes inside the label value will not be escaped.
 // It's better suited for a label value where you control the input (either it is already sanitized, or it comes from a const or an enum for example).
 //
-// Panics if the label name or label value contains more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
+// Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 //
 // NoOp if the label name or label value are empty.
 func (b *Builder) Label(name, value string) *Builder {
