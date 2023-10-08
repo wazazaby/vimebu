@@ -29,11 +29,11 @@ import (
 )
 
 func getCassandraQueryCounter(name string, host net.IP) *vm.Counter {
-    metric := vimebu.
-        Metric("cassandra_query_total").
-        Label("name", name).
-        Label("host", host.String()).
-        String() // cassandra_query_total{name="beep",host="1.2.3.4"}
+    var b vimebu.Builder
+    b.Metric("cassandra_query_total")
+    b.Label("name", name)
+    b.Label("host", host.String())
+    metric := b.String() // cassandra_query_total{name="beep",host="1.2.3.4"}
     return vm.GetOrCreateCounter(metric)
 }
 ```
@@ -64,10 +64,10 @@ import (
 )
 
 func getHTTPRequestCounter(path string) *vm.Counter {
-    metric := vimebu.
-        Metric("api_http_requests_total").
-        LabelQuote("path", path).
-        String() // api_http_requests_total{path="some/bro\"ken/path"}
+    var b vimebu.Builder
+    b.Metric("api_http_requests_total")
+    b.LabelQuote("path", path)
+    metric := b.String() // api_http_requests_total{path="some/bro\"ken/path"}
     return vm.GetOrCreateCounter(metric)
 }
 ```
