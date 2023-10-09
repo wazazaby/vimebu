@@ -1,6 +1,9 @@
 # vimebu
 Vimebu is a small library that provides a builder to create VictoriaMetrics compatible metrics.
 
+## Gotchas
+When a metric is invalid (empty name, empty label name or value etc), Vimebu will skip and log to os.Stderr.
+
 ## Usage
 ### Builder pattern
 ```go

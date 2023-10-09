@@ -2,6 +2,7 @@ package vimebu
 
 import (
 	"bytes"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -29,25 +30,29 @@ func Metric(name string) *Builder {
 
 // Metric sets the metric name of the Builder.
 //
-// NoOp if called more than once for the same builder.
-//
-// Panics if the name is empty, contains more than [vimebu.MetricNameMaxLen] bytes or if it contains a double quote.
+// NoOp if :
+// * called more than once for the same builder instance.
+// * the name is empty or contains more than [vimebu.MetricNameMaxLen] bytes.
+// * the name contains a double quote.
 func (b *Builder) Metric(name string) *Builder {
 	if b.flName {
+		log.Println("metric has already been called for this builder, skipping")
 		return b
 	}
 
 	ln := len(name)
 	if ln == 0 {
-		panic("metric name must not be empty")
+		log.Println("metric name must not be empty, skipping")
+		return b
 	}
-
 	if ln > MetricNameMaxLen {
-		panic("metric name contains too many bytes")
+		log.Println("metric name contains too many bytes, skipping ")
+		return b
 	}
 
 	if strings.Contains(name, `"`) {
-		panic("metric name should not contain double quotes")
+		log.Println("metric name contains double quotes, skipping")
+		return b
 	}
 
 	b.init()
@@ -61,9 +66,10 @@ func (b *Builder) Metric(name string) *Builder {
 
 // LabelQuote appends a pair of label name and label value to the Builder. Quotes inside the label value will be escaped.
 //
-// Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
-//
-// NoOp if the label name or label value are empty.
+// NoOp if :
+// * no metric name has been set using [vimebu.Builder.Metric].
+// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+// * the label value is empty or contains more than [vimebu.LabelValueMaxLen].
 func (b *Builder) LabelQuote(name, value string) *Builder {
 	return b.label(name, value, true)
 }
@@ -72,24 +78,38 @@ func (b *Builder) LabelQuote(name, value string) *Builder {
 // Unlike [vimebu.Builder.LabelQuote], quotes inside the label value will not be escaped.
 // It's better suited for a label value where you control the input (either it is already sanitized, or it comes from a const or an enum for example).
 //
-// Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
-//
-// NoOp if the label name or label value are empty.
+// NoOp if :
+// * no metric name has been set using [vimebu.Builder.Metric].
+// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+// * the label value is empty or contains more than [vimebu.LabelValueMaxLen].
 func (b *Builder) Label(name, value string) *Builder {
 	return b.label(name, value, false)
 }
 
 func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
-	if !b.flName || name == "" || value == "" {
+	if !b.flName {
+		log.Println("metric has not been called on this builder, skipping")
 		return b
 	}
 
-	if len(name) > LabelNameMaxLen {
-		panic("label name contains too many bytes")
+	ln := len(name)
+	if ln == 0 {
+		log.Println("label name must not be empty, skipping")
+		return b
+	}
+	if ln > LabelNameMaxLen {
+		log.Println("label name contains too many bytes, skipping")
+		return b
 	}
 
-	if len(value) > LabelValueLen {
-		panic("label value contains too many bytes")
+	lv := len(value)
+	if lv == 0 {
+		log.Println("label value must not be empty, skipping")
+		return b
+	}
+	if lv > LabelValueLen {
+		log.Println("label value contains too many bytes, skipping")
+		return b
 	}
 
 	if b.flLabel { // If we already wrote a label, start writing commas before label names.
@@ -128,15 +148,4 @@ func (b *Builder) String() string {
 func (b *Builder) Reset() {
 	b.flName, b.flLabel = false, false
 	putBuffer(b.underlying)
-}
-
-// Grow exposes the underlying buffer's Grow method for preallocation purposes.
-//
-// It can be useful is you already know the size of your metric, including labels.
-//
-// Please see [bytes.Buffer.Grow].
-func (b *Builder) Grow(n int) *Builder {
-	b.init()
-	b.underlying.Grow(n)
-	return b
 }

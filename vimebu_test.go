@@ -20,7 +20,7 @@ type testCase struct {
 	name      string
 	expected  string
 	input     input
-	mustPanic bool
+	skipBench bool
 }
 
 var testCases = []testCase{
@@ -49,7 +49,26 @@ var testCases = []testCase{
 	},
 	{
 		name:      "no name",
-		mustPanic: true,
+		skipBench: true,
+	},
+	{
+		name: "metric with a lot of labels",
+		input: input{
+			labels: []label{
+				{"method", "PUT", false},
+				{"host", "1.2.3.4", false},
+				{"status", "OK", false},
+				{"node", "node--11-3", false},
+				{"path", "/foo/bar", false},
+				{"size", "667", false},
+				{"auth", "basic", false},
+				{"error", "nil", false},
+				{"cached", "false", false},
+				{"query", "select_boop", false},
+			},
+			name: "api_http_requests_total",
+		},
+		expected: `api_http_requests_total{method="PUT",host="1.2.3.4",status="OK",node="node--11-3",path="/foo/bar",size="667",auth="basic",error="nil",cached="false",query="select_boop"}`,
 	},
 	{
 		name: "some empty labels and values",
@@ -57,7 +76,8 @@ var testCases = []testCase{
 			labels: []label{{"operation", "", false}, {"", "1.2.3.4", false}, {"status", "OK", false}, {"node", "", false}},
 			name:   "api_http_requests_total",
 		},
-		expected: `api_http_requests_total{status="OK"}`,
+		expected:  `api_http_requests_total{status="OK"}`,
+		skipBench: true,
 	},
 	{
 		name: "values contain double quotes",
@@ -85,7 +105,7 @@ var testCases = []testCase{
 		input: input{
 			name: strings.Repeat("b", 512),
 		},
-		mustPanic: true,
+		skipBench: true,
 	},
 	{
 		name: "label name contains too many bytes",
@@ -93,7 +113,8 @@ var testCases = []testCase{
 			name:   "api_http_requests_total",
 			labels: []label{{strings.Repeat("b", 256), "test", false}},
 		},
-		mustPanic: true,
+		expected:  `api_http_requests_total{}`,
+		skipBench: true,
 	},
 	{
 		name: "label value contains too many bytes",
@@ -101,15 +122,13 @@ var testCases = []testCase{
 			name:   "api_http_requests_total",
 			labels: []label{{"test", strings.Repeat("b", 2048), false}},
 		},
-		mustPanic: true,
+		expected:  `api_http_requests_total{}`,
+		skipBench: true,
 	},
 }
 
 func handleTestCase(t *testing.T, tc testCase) {
 	var b Builder
-
-	b.Grow(128)
-	require.GreaterOrEqual(t, b.underlying.Cap(), 128)
 
 	b.Metric(tc.input.name)
 
@@ -134,15 +153,9 @@ func handleTestCase(t *testing.T, tc testCase) {
 func TestBuilder(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.mustPanic {
-				require.Panics(t, func() {
-					handleTestCase(t, tc)
-				})
-			} else {
-				require.NotPanics(t, func() {
-					handleTestCase(t, tc)
-				})
-			}
+			require.NotPanics(t, func() {
+				handleTestCase(t, tc)
+			})
 		})
 	}
 }
@@ -193,7 +206,7 @@ func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
 
 func BenchmarkBuilderTestCases(b *testing.B) {
 	for _, tc := range testCases {
-		if tc.mustPanic {
+		if tc.skipBench {
 			continue
 		}
 		b.Run(tc.name, func(b *testing.B) {

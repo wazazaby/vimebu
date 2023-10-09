@@ -1,6 +1,7 @@
 package vimebu
 
 import (
+	"log"
 	"strconv"
 	"strings"
 )
@@ -14,11 +15,13 @@ type LabelCallback func() (name, value string, escapeQuote bool)
 // Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func WithLabel(name, value string) LabelCallback {
 	if len(name) > LabelNameMaxLen {
-		panic("label name contains too many bytes")
+		name, value = "", ""
+		log.Println("label name contains too many bytes, skipping")
 	}
 
 	if len(value) > LabelValueLen {
-		panic("label value contains too many bytes")
+		name, value = "", ""
+		log.Println("label value contains too many bytes, skipping")
 	}
 
 	return func() (string, string, bool) {
@@ -42,11 +45,13 @@ func WithLabelCond(fn func() bool, name, value string) LabelCallback {
 // Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func WithLabelQuote(name, value string) LabelCallback {
 	if len(name) > LabelNameMaxLen {
-		panic("label name contains too many bytes")
+		name, value = "", ""
+		log.Println("label name contains too many bytes, skipping")
 	}
 
 	if len(value) > LabelValueLen {
-		panic("label value contains too many bytes")
+		name, value = "", ""
+		log.Println("label value contains too many bytes, skipping")
 	}
 
 	return func() (string, string, bool) {
@@ -68,19 +73,24 @@ func WithLabelQuoteCond(fn func() bool, name, value string) LabelCallback {
 // BuilderFunc is used to efficiently build a VictoriaMetrics metric.
 // It's backed by a bytes.Buffer to minimize memory copying.
 //
-// Panics if the name is empty, contains more than [vimebu.MetricNameMaxLen] bytes or if it contains a double quote.
+// NoOp if :
+// * the name is empty or contains more than [vimebu.MetricNameMaxLen] bytes.
+// * the name contains a double quote.
 func BuilderFunc(name string, labels ...LabelCallback) string {
 	ln := len(name)
 	if ln == 0 {
-		panic("metric name must not be empty")
+		log.Println("metric name must not be empty, skipping")
+		return ""
 	}
 
 	if ln > MetricNameMaxLen {
-		panic("metric name contains too many bytes")
+		log.Println("metric name contains too many bytes, skipping")
+		return ""
 	}
 
 	if strings.Contains(name, `"`) {
-		panic("metric name should not contain double quotes")
+		log.Println("metric name contains double quotes, skipping")
+		return ""
 	}
 
 	// In case there are no labels, using a strings.Builder is actually

@@ -24,15 +24,9 @@ func handleTestCaseFunc(t *testing.T, tc testCase) {
 func TestBuilderFunc(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.mustPanic {
-				require.Panics(t, func() {
-					handleTestCaseFunc(t, tc)
-				})
-			} else {
-				require.NotPanics(t, func() {
-					handleTestCaseFunc(t, tc)
-				})
-			}
+			require.NotPanics(t, func() {
+				handleTestCaseFunc(t, tc)
+			})
 		})
 	}
 }
@@ -49,7 +43,7 @@ func TestLabelCond(t *testing.T) {
 
 func BenchmarkBuilderFuncTestCases(b *testing.B) {
 	for _, tc := range testCases {
-		if tc.mustPanic { // Skip test cases that panics as they will break the benchmarks.
+		if tc.skipBench {
 			continue
 		}
 		b.Run(tc.name, func(b *testing.B) {
