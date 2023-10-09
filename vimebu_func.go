@@ -15,13 +15,13 @@ type LabelCallback func() (name, value string, escapeQuote bool)
 // Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func WithLabel(name, value string) LabelCallback {
 	if len(name) > LabelNameMaxLen {
-		name, value = "", ""
 		log.Println("label name contains too many bytes, skipping")
+		return nil
 	}
 
 	if len(value) > LabelValueLen {
-		name, value = "", ""
 		log.Println("label value contains too many bytes, skipping")
+		return nil
 	}
 
 	return func() (string, string, bool) {
@@ -45,13 +45,13 @@ func WithLabelCond(fn func() bool, name, value string) LabelCallback {
 // Panics if the label name or label value contain more than [vimebu.LabelNameMaxLen] or [vimebu.LabelValueMaxLen] bytes respectively.
 func WithLabelQuote(name, value string) LabelCallback {
 	if len(name) > LabelNameMaxLen {
-		name, value = "", ""
 		log.Println("label name contains too many bytes, skipping")
+		return nil
 	}
 
 	if len(value) > LabelValueLen {
-		name, value = "", ""
 		log.Println("label value contains too many bytes, skipping")
+		return nil
 	}
 
 	return func() (string, string, bool) {
@@ -82,12 +82,10 @@ func BuilderFunc(name string, labels ...LabelCallback) string {
 		log.Println("metric name must not be empty, skipping")
 		return ""
 	}
-
 	if ln > MetricNameMaxLen {
 		log.Println("metric name contains too many bytes, skipping")
 		return ""
 	}
-
 	if strings.Contains(name, `"`) {
 		log.Println("metric name contains double quotes, skipping")
 		return ""
@@ -110,8 +108,17 @@ func BuilderFunc(name string, labels ...LabelCallback) string {
 	b.WriteByte(leftBracketByte)
 	var flLabel bool
 	for _, callback := range labels {
+		if callback == nil {
+			continue
+		}
+
 		name, value, escapeQuote := callback()
-		if name == "" || value == "" {
+		if name == "" {
+			log.Println("label name must not be empty, skipping")
+			continue
+		}
+		if value == "" {
+			log.Println("label value must not be empty, skipping")
 			continue
 		}
 
