@@ -9,6 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type stringerValue struct {
+	value string
+}
+
+func (v stringerValue) String() string {
+	return v.value
+}
+
 type label struct {
 	name        string
 	value       any
@@ -137,9 +145,10 @@ var testCases = []testCase{
 				{"is_tac", false, false},
 				{"point", float64(123.456), false},
 				{"num", int64(1234), false},
+				{"stringer", stringerValue{"spiderman"}, false},
 			},
 		},
-		expected: `cassandra_query_count{path="/\"some\"/path",is_bidule="true",is_tac="false",point="123.456",num="1234"}`,
+		expected: `cassandra_query_count{path="/\"some\"/path",is_bidule="true",is_tac="false",point="123.456",num="1234",stringer="spiderman"}`,
 	},
 	{
 		name: "bool label values",
@@ -179,6 +188,17 @@ var testCases = []testCase{
 		},
 		expected: `cassandra_query_count{a="1",b="0",c="11111111.22222222",d="1234.456789",e="1234.456789"}`,
 	},
+	{
+		name: "fmt.Stringer label values",
+		input: input{
+			name: "external_hit_count",
+			labels: []label{
+				{"key", stringerValue{"value"}, false},
+				{"key_quoted", stringerValue{`"yep"`}, true},
+			},
+		},
+		expected: `external_hit_count{key="value",key_quoted="\"yep\""}`,
+	},
 }
 
 func handleTestCase(t *testing.T, tc testCase) {
@@ -200,6 +220,12 @@ func handleTestCase(t *testing.T, tc testCase) {
 			b.LabelInt(label.name, v)
 		case float64:
 			b.LabelFloat(label.name, v)
+		case fmt.Stringer:
+			if label.shouldQuote {
+				b.LabelStringerQuote(label.name, v)
+			} else {
+				b.LabelStringer(label.name, v)
+			}
 		default:
 			panic(fmt.Sprintf("unsupported type %T", v))
 		}
@@ -287,6 +313,12 @@ func BenchmarkBuilderTestCases(b *testing.B) {
 						builder.LabelInt(label.name, v)
 					case float64:
 						builder.LabelFloat(label.name, v)
+					case fmt.Stringer:
+						if label.shouldQuote {
+							builder.LabelStringerQuote(label.name, v)
+						} else {
+							builder.LabelStringer(label.name, v)
+						}
 					default:
 						panic(fmt.Sprintf("unsupported type %T", v))
 					}
