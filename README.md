@@ -26,7 +26,7 @@ var responseSizeHistogram = metrics.NewHistogram(
 var updateTotalCounterV3 = vimebu.
     Metric("update_total").
     LabelInt("version", 3).
-    NewCounter() // update_total{}
+    NewCounter() // update_total{version="3"}
 ```
 
 ### Create metrics with variable label values
