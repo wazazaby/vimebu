@@ -71,7 +71,7 @@ func (b *Builder) Metric(name string) *Builder {
 // * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 // * the label value is empty or contains more than [vimebu.LabelValueMaxLen].
 func (b *Builder) LabelQuote(name, value string) *Builder {
-	return b.label(name, value, true)
+	return b.label(name, true, &value, nil, nil, nil)
 }
 
 // Label appends a pair of label name and label value to the Builder.
@@ -83,10 +83,37 @@ func (b *Builder) LabelQuote(name, value string) *Builder {
 // * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 // * the label value is empty or contains more than [vimebu.LabelValueMaxLen].
 func (b *Builder) Label(name, value string) *Builder {
-	return b.label(name, value, false)
+	return b.label(name, false, &value, nil, nil, nil)
 }
 
-func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
+// LabelBool appends a pair of label name and boolean label value to the Builder.
+//
+// NoOp if :
+// * no metric name has been set using [vimebu.Builder.Metric].
+// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelBool(name string, value bool) *Builder {
+	return b.label(name, false, nil, &value, nil, nil)
+}
+
+// LabelInt appends a pair of label name and int64 label value to the Builder.
+//
+// NoOp if :
+// * no metric name has been set using [vimebu.Builder.Metric].
+// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelInt(name string, value int64) *Builder {
+	return b.label(name, false, nil, nil, &value, nil)
+}
+
+// LabelFloat appends a pair of label name and float64 label value to the Builder.
+//
+// NoOp if :
+// * no metric name has been set using [vimebu.Builder.Metric].
+// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelFloat(name string, value float64) *Builder {
+	return b.label(name, false, nil, nil, nil, &value)
+}
+
+func (b *Builder) label(name string, escapeQuote bool, stringValue *string, boolValue *bool, int64Value *int64, float64Value *float64) *Builder {
 	if !b.flName {
 		log.Println("metric has not been called on this builder, skipping")
 		return b
@@ -102,14 +129,17 @@ func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
 		return b
 	}
 
-	lv := len(value)
-	if lv == 0 {
-		log.Println("label value must not be empty, skipping")
-		return b
-	}
-	if lv > LabelValueLen {
-		log.Println("label value contains too many bytes, skipping")
-		return b
+	// String values need to be checked separately as they can be invalid (empty, or contain too many bytes).
+	if stringValue != nil {
+		lv := len(*stringValue)
+		if lv == 0 {
+			log.Println("label value must not be empty, skipping")
+			return b
+		}
+		if lv > LabelValueLen {
+			log.Println("label value contains too many bytes, skipping")
+			return b
+		}
 	}
 
 	if b.flLabel { // If we already wrote a label, start writing commas before label names.
@@ -120,17 +150,60 @@ func (b *Builder) label(name, value string, escapeQuote bool) *Builder {
 
 	b.underlying.WriteString(name)
 	b.underlying.WriteByte(equalByte)
-	if escapeQuote && strings.Contains(value, `"`) { // If we need to escape quotes in the label value.
-		buf := b.underlying.AvailableBuffer()
-		quoted := strconv.AppendQuote(buf, value)
-		b.underlying.Write(quoted)
-	} else { // Otherwise, just wrap the label value inside a pair of double quotes.
-		b.underlying.WriteByte(doubleQuotesByte)
-		b.underlying.WriteString(value)
-		b.underlying.WriteByte(doubleQuotesByte)
+	switch {
+	case stringValue != nil:
+		b.appendString(*stringValue, escapeQuote)
+	case boolValue != nil:
+		b.appendBool(*boolValue)
+	case int64Value != nil:
+		b.appendInt64(*int64Value)
+	case float64Value != nil:
+		b.appendFloat64(*float64Value)
+	default: // Internal problem (wrong use of the label function), panic.
+		panic("unsupported case - no label value set")
 	}
 
 	return b
+}
+
+// appendString quotes (if needed) and appends s to b's underlying buffer.
+func (b *Builder) appendString(s string, escapeQuote bool) {
+	buf := b.underlying.AvailableBuffer()
+	if escapeQuote && strings.Contains(s, `"`) {
+		buf = strconv.AppendQuote(buf, s)
+	} else {
+		buf = append(buf, doubleQuotesByte)
+		buf = append(buf, s...)
+		buf = append(buf, doubleQuotesByte)
+	}
+	b.underlying.Write(buf)
+}
+
+// appendBool appends bl to b's underlying buffer.
+func (b *Builder) appendBool(bl bool) {
+	buf := b.underlying.AvailableBuffer()
+	buf = append(buf, doubleQuotesByte)
+	buf = strconv.AppendBool(buf, bl)
+	buf = append(buf, doubleQuotesByte)
+	b.underlying.Write(buf)
+}
+
+// appendInt64 appends i to b's underlying buffer.
+func (b *Builder) appendInt64(i int64) {
+	buf := b.underlying.AvailableBuffer()
+	buf = append(buf, doubleQuotesByte)
+	buf = strconv.AppendInt(buf, i, 10)
+	buf = append(buf, doubleQuotesByte)
+	b.underlying.Write(buf)
+}
+
+// appendFloat64 appends f to b's underlying buffer.
+func (b *Builder) appendFloat64(f float64) {
+	buf := b.underlying.AvailableBuffer()
+	buf = append(buf, doubleQuotesByte)
+	buf = strconv.AppendFloat(buf, f, 'f', -1, 64)
+	buf = append(buf, doubleQuotesByte)
+	b.underlying.Write(buf)
 }
 
 // String builds the metric by returning the accumulated string.

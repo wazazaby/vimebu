@@ -1,6 +1,7 @@
 package vimebu
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -9,7 +10,8 @@ import (
 )
 
 type label struct {
-	name, value string
+	name        string
+	value       any
 	shouldQuote bool
 }
 type input struct {
@@ -125,6 +127,58 @@ var testCases = []testCase{
 		expected:  `api_http_requests_total{}`,
 		skipBench: true,
 	},
+	{
+		name: "mixed label value types",
+		input: input{
+			name: "cassandra_query_count",
+			labels: []label{
+				{"path", `/"some"/path`, true},
+				{"is_bidule", true, false},
+				{"is_tac", false, false},
+				{"point", float64(123.456), false},
+				{"num", int64(1234), false},
+			},
+		},
+		expected: `cassandra_query_count{path="/\"some\"/path",is_bidule="true",is_tac="false",point="123.456",num="1234"}`,
+	},
+	{
+		name: "bool label values",
+		input: input{
+			name: "cassandra_query_count",
+			labels: []label{
+				{"is_bidule", true, false},
+				{"is_tac", false, false},
+			},
+		},
+		expected: `cassandra_query_count{is_bidule="true",is_tac="false"}`,
+	},
+	{
+		name: "int64 label values",
+		input: input{
+			name: "cassandra_query_count",
+			labels: []label{
+				{"a", int64(69002), false},
+				{"b", int64(0), false},
+				{"c", int64(0000001), false},
+				{"d", int64(1), false},
+			},
+		},
+		expected: `cassandra_query_count{a="69002",b="0",c="1",d="1"}`,
+	},
+	{
+		name: "float64 label values",
+		input: input{
+			name: "cassandra_query_count",
+			labels: []label{
+				{"a", float64(1), false},
+				{"b", float64(0), false},
+				{"c", float64(11111111.22222222), false},
+				{"d", float64(1234.456789), false},
+				{"e", float64(1234.4567890000), false},
+			},
+		},
+		expected: `cassandra_query_count{a="1",b="0",c="11111111.22222222",d="1234.456789",e="1234.456789"}`,
+	},
 }
 
 func handleTestCase(t *testing.T, tc testCase) {
@@ -133,10 +187,21 @@ func handleTestCase(t *testing.T, tc testCase) {
 	b.Metric(tc.input.name)
 
 	for _, label := range tc.input.labels {
-		if label.shouldQuote {
-			b.LabelQuote(label.name, label.value)
-		} else {
-			b.Label(label.name, label.value)
+		switch v := label.value.(type) {
+		case string:
+			if label.shouldQuote {
+				b.LabelQuote(label.name, v)
+			} else {
+				b.Label(label.name, v)
+			}
+		case bool:
+			b.LabelBool(label.name, v)
+		case int64:
+			b.LabelInt(label.name, v)
+		case float64:
+			b.LabelFloat(label.name, v)
+		default:
+			panic(fmt.Sprintf("unsupported type %T", v))
 		}
 	}
 
@@ -213,13 +278,26 @@ func BenchmarkBuilderTestCases(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				var builder Builder
 				builder.Metric(tc.input.name)
+
 				for _, label := range tc.input.labels {
-					if label.shouldQuote {
-						builder.LabelQuote(label.name, label.value)
-					} else {
-						builder.Label(label.name, label.value)
+					switch v := label.value.(type) {
+					case string:
+						if label.shouldQuote {
+							builder.LabelQuote(label.name, v)
+						} else {
+							builder.Label(label.name, v)
+						}
+					case bool:
+						builder.LabelBool(label.name, v)
+					case int64:
+						builder.LabelInt(label.name, v)
+					case float64:
+						builder.LabelFloat(label.name, v)
+					default:
+						panic(fmt.Sprintf("unsupported type %T", v))
 					}
 				}
+
 				_ = builder.String()
 			}
 		})
