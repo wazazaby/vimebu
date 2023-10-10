@@ -216,9 +216,3 @@ func (b *Builder) String() string {
 	b.underlying.WriteByte(rightBracketByte)
 	return b.underlying.String()
 }
-
-// Reset resets the Builder to be empty.
-func (b *Builder) Reset() {
-	b.flName, b.flLabel = false, false
-	putBuffer(b.underlying)
-}

@@ -207,12 +207,6 @@ func handleTestCase(t *testing.T, tc testCase) {
 
 	result := b.String()
 	require.Equal(t, tc.expected, result)
-
-	t.Run("reset", func(t *testing.T) {
-		b.Reset()
-		require.False(t, b.flName)
-		require.False(t, b.flLabel)
-	})
 }
 
 func TestBuilder(t *testing.T) {
