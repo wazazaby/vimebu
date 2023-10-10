@@ -43,7 +43,7 @@ func getCassandraQueryCounter(name string, host net.IP) *metrics.Counter {
     var b vimebu.Builder
     b.Metric("cassandra_query_total")
     b.Label("name", name)
-    b.Label("host", host.String())
+    b.LabelStringer("host", host)
     metric := b.String() // cassandra_query_total{name="beep",host="1.2.3.4"}
     return metrics.GetOrCreateCounter(metric)
 }
