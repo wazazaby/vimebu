@@ -2,6 +2,7 @@ package vimebu
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -123,6 +124,29 @@ func (b *Builder) LabelInt(name string, value int64) *Builder {
 //   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 func (b *Builder) LabelFloat(name string, value float64) *Builder {
 	return b.label(name, false, nil, nil, nil, &value)
+}
+
+// LabelStringer appends a pair of label name and label value (implementing [fmt.Stringer]) to the Builder.
+// Unlike [vimebu.Builder.LabelStringerQuote], quotes inside the label value will not be escaped.
+// It's better suited for a label value where you control the input (either it is already sanitized, or it comes from a const or an enum for example).
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelStringer(name string, value fmt.Stringer) *Builder {
+	s := value.String()
+	return b.label(name, false, &s, nil, nil, nil)
+}
+
+// LabelStringerQuote appends a pair of label name and label value (implementing [fmt.Stringer]) to the Builder.
+// Quotes inside the label value will be escaped.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
+	s := value.String()
+	return b.label(name, true, &s, nil, nil, nil)
 }
 
 func (b *Builder) label(name string, escapeQuote bool, stringValue *string, boolValue *bool, int64Value *int64, float64Value *float64) *Builder {
