@@ -10,10 +10,15 @@ func handleTestCaseFunc(t *testing.T, tc testCase) {
 	labels := make([]LabelCallback, 0, len(tc.input.labels))
 
 	for _, label := range tc.input.labels {
-		if label.shouldQuote {
-			labels = append(labels, WithLabelQuote(label.name, label.value))
-		} else {
-			labels = append(labels, WithLabel(label.name, label.value))
+		switch v := label.value.(type) {
+		case string:
+			if label.shouldQuote {
+				labels = append(labels, WithLabelQuote(label.name, v))
+			} else {
+				labels = append(labels, WithLabel(label.name, v))
+			}
+		default: // If labels contain something else than a string, skip the test.
+			return
 		}
 	}
 
@@ -50,10 +55,15 @@ func BenchmarkBuilderFuncTestCases(b *testing.B) {
 			labels := make([]LabelCallback, 0, len(tc.input.labels))
 
 			for _, label := range tc.input.labels {
-				if label.shouldQuote {
-					labels = append(labels, WithLabelQuote(label.name, label.value))
-				} else {
-					labels = append(labels, WithLabel(label.name, label.value))
+				switch v := label.value.(type) {
+				case string:
+					if label.shouldQuote {
+						labels = append(labels, WithLabelQuote(label.name, v))
+					} else {
+						labels = append(labels, WithLabel(label.name, v))
+					}
+				default: // If labels contain something else than a string, skip the bench.
+					return
 				}
 			}
 
