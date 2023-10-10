@@ -31,9 +31,9 @@ func Metric(name string) *Builder {
 // Metric sets the metric name of the Builder.
 //
 // NoOp if :
-// * called more than once for the same builder instance.
-// * the name is empty or contains more than [vimebu.MetricNameMaxLen] bytes.
-// * the name contains a double quote.
+//   - called more than once for the same builder instance.
+//   - the name is empty or contains more than [vimebu.MetricNameMaxLen] bytes.
+//   - the name contains a double quote.
 func (b *Builder) Metric(name string) *Builder {
 	if b.flName {
 		log.Println("metric has already been called for this builder, skipping")
@@ -67,9 +67,9 @@ func (b *Builder) Metric(name string) *Builder {
 // LabelQuote appends a pair of label name and label value to the Builder. Quotes inside the label value will be escaped.
 //
 // NoOp if :
-// * no metric name has been set using [vimebu.Builder.Metric].
-// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
-// * the label value is empty or contains more than [vimebu.LabelValueMaxLen].
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+//   - the label value is empty or contains more than [vimebu.LabelValueMaxLen].
 func (b *Builder) LabelQuote(name, value string) *Builder {
 	return b.label(name, true, &value, nil, nil, nil)
 }
@@ -79,9 +79,9 @@ func (b *Builder) LabelQuote(name, value string) *Builder {
 // It's better suited for a label value where you control the input (either it is already sanitized, or it comes from a const or an enum for example).
 //
 // NoOp if :
-// * no metric name has been set using [vimebu.Builder.Metric].
-// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
-// * the label value is empty or contains more than [vimebu.LabelValueMaxLen].
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+//   - the label value is empty or contains more than [vimebu.LabelValueMaxLen].
 func (b *Builder) Label(name, value string) *Builder {
 	return b.label(name, false, &value, nil, nil, nil)
 }
@@ -89,8 +89,8 @@ func (b *Builder) Label(name, value string) *Builder {
 // LabelBool appends a pair of label name and boolean label value to the Builder.
 //
 // NoOp if :
-// * no metric name has been set using [vimebu.Builder.Metric].
-// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 func (b *Builder) LabelBool(name string, value bool) *Builder {
 	return b.label(name, false, nil, &value, nil, nil)
 }
@@ -98,8 +98,8 @@ func (b *Builder) LabelBool(name string, value bool) *Builder {
 // LabelInt appends a pair of label name and int64 label value to the Builder.
 //
 // NoOp if :
-// * no metric name has been set using [vimebu.Builder.Metric].
-// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 func (b *Builder) LabelInt(name string, value int64) *Builder {
 	return b.label(name, false, nil, nil, &value, nil)
 }
@@ -107,8 +107,8 @@ func (b *Builder) LabelInt(name string, value int64) *Builder {
 // LabelFloat appends a pair of label name and float64 label value to the Builder.
 //
 // NoOp if :
-// * no metric name has been set using [vimebu.Builder.Metric].
-// * the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 func (b *Builder) LabelFloat(name string, value float64) *Builder {
 	return b.label(name, false, nil, nil, nil, &value)
 }
