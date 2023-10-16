@@ -6,6 +6,9 @@
 
 vimebu is a small library that provides a builder to create VictoriaMetrics compatible metrics.
 
+## Installation
+`go get -u github.com/wazazaby/vimebu`
+
 ## Usage
 ```go
 import (
