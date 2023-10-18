@@ -205,7 +205,7 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 // appendString quotes (if needed) and appends s to b's underlying buffer.
 func (b *Builder) appendString(s string, escapeQuote bool) {
 	buf := b.underlying.AvailableBuffer()
-	if escapeQuote && strings.Contains(s, `"`) {
+	if escapeQuote {
 		buf = strconv.AppendQuote(buf, s)
 	} else {
 		buf = append(buf, doubleQuotesByte)
