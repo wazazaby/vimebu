@@ -55,7 +55,7 @@ var testCases = []testCase{
 		input: input{
 			name: "http_request_duration_seconds",
 		},
-		expected: `http_request_duration_seconds{}`,
+		expected: `http_request_duration_seconds`,
 	},
 	{
 		name:      "no name",
@@ -123,7 +123,7 @@ var testCases = []testCase{
 			name:   "api_http_requests_total",
 			labels: []label{{strings.Repeat("b", 256), "test", false}},
 		},
-		expected:  `api_http_requests_total{}`,
+		expected:  `api_http_requests_total`,
 		skipBench: true,
 	},
 	{
@@ -132,7 +132,7 @@ var testCases = []testCase{
 			name:   "api_http_requests_total",
 			labels: []label{{"test", strings.Repeat("b", 2048), false}},
 		},
-		expected:  `api_http_requests_total{}`,
+		expected:  `api_http_requests_total`,
 		skipBench: true,
 	},
 	{

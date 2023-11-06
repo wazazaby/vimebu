@@ -71,7 +71,6 @@ func (b *Builder) Metric(name string) *Builder {
 	b.init()
 
 	b.underlying.WriteString(name)
-	b.underlying.WriteByte(leftBracketByte)
 	b.flName = true
 
 	return b
@@ -181,6 +180,7 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 	if b.flLabel { // If we already wrote a label, start writing commas before label names.
 		b.underlying.WriteByte(commaByte)
 	} else { // Otherwise, mark flag as true for next pass.
+		b.underlying.WriteByte(leftBracketByte)
 		b.flLabel = true
 	}
 
@@ -248,7 +248,8 @@ func (b *Builder) String() string {
 	if !b.flName {
 		return ""
 	}
-
-	b.underlying.WriteByte(rightBracketByte)
+	if b.flLabel {
+		b.underlying.WriteByte(rightBracketByte)
+	}
 	return b.underlying.String()
 }
