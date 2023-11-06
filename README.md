@@ -25,7 +25,7 @@ var requestsTotalCounter = metrics.NewCounter(
 )
 
 var responseSizeHistogram = metrics.NewHistogram(
-    vimebu.Metric("response_size").String(), // response_size{}
+    vimebu.Metric("response_size").String(), // response_size
 )
 
 // Registering the metric using the provided helpers.
@@ -68,7 +68,7 @@ func getHTTPRequestCounter(host string) *metrics.Counter {
     if host != "" {
         b.Label("host", host)
     }
-    metric := b.String() // api_http_requests_total{} or api_http_requests_total{host="api.app.com"}
+    metric := b.String() // api_http_requests_total or api_http_requests_total{host="api.app.com"}
     return metrics.GetOrCreateCounter(metric)
 }
 ```
