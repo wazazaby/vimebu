@@ -84,7 +84,7 @@ func (b *Builder) Metric(name string) *Builder {
 //   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 //   - the label value is empty or contains more than [vimebu.LabelValueMaxLen].
 func (b *Builder) LabelQuote(name, value string) *Builder {
-	return b.label(name, true, &value, nil, nil, nil)
+	return b.label(name, true, &value, nil, nil, nil, nil)
 }
 
 // Label appends a pair of label name and label value to the Builder.
@@ -96,7 +96,7 @@ func (b *Builder) LabelQuote(name, value string) *Builder {
 //   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 //   - the label value is empty or contains more than [vimebu.LabelValueMaxLen].
 func (b *Builder) Label(name, value string) *Builder {
-	return b.label(name, false, &value, nil, nil, nil)
+	return b.label(name, false, &value, nil, nil, nil, nil)
 }
 
 // LabelBool appends a pair of label name and boolean label value to the Builder.
@@ -105,25 +105,125 @@ func (b *Builder) Label(name, value string) *Builder {
 //   - no metric name has been set using [vimebu.Builder.Metric].
 //   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 func (b *Builder) LabelBool(name string, value bool) *Builder {
-	return b.label(name, false, nil, &value, nil, nil)
+	return b.label(name, false, nil, &value, nil, nil, nil)
 }
 
-// LabelInt appends a pair of label name and int64 label value to the Builder.
+// LabelUint appends a pair of label name and uint label value to the Builder.
 //
 // NoOp if :
 //   - no metric name has been set using [vimebu.Builder.Metric].
 //   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
-func (b *Builder) LabelInt(name string, value int64) *Builder {
-	return b.label(name, false, nil, nil, &value, nil)
+func (b *Builder) LabelUint(name string, value uint) *Builder {
+	i := uint64(value)
+	return b.label(name, false, nil, nil, &i, nil, nil)
 }
 
-// LabelFloat appends a pair of label name and float64 label value to the Builder.
+// LabelUint8 appends a pair of label name and uint8 label value to the Builder.
 //
 // NoOp if :
 //   - no metric name has been set using [vimebu.Builder.Metric].
 //   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
-func (b *Builder) LabelFloat(name string, value float64) *Builder {
-	return b.label(name, false, nil, nil, nil, &value)
+func (b *Builder) LabelUint8(name string, value uint8) *Builder {
+	i := uint64(value)
+	return b.label(name, false, nil, nil, &i, nil, nil)
+}
+
+// LabelUint16 appends a pair of label name and uint16 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelUint16(name string, value uint16) *Builder {
+	i := uint64(value)
+	return b.label(name, false, nil, nil, &i, nil, nil)
+}
+
+// LabelUint32 appends a pair of label name and uint32 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelUint32(name string, value uint32) *Builder {
+	i := uint64(value)
+	return b.label(name, false, nil, nil, &i, nil, nil)
+}
+
+// LabelUint64 appends a pair of label name and uint64 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelUint64(name string, value uint64) *Builder {
+	return b.label(name, false, nil, nil, &value, nil, nil)
+}
+
+// LabelInt appends a pair of label name and int label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelInt(name string, value int) *Builder {
+	i := int64(value)
+	return b.label(name, false, nil, nil, nil, &i, nil)
+}
+
+// LabelInt8 appends a pair of label name and int8 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelInt8(name string, value int8) *Builder {
+	i := int64(value)
+	return b.label(name, false, nil, nil, nil, &i, nil)
+}
+
+// LabelInt16 appends a pair of label name and int16 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelInt16(name string, value int16) *Builder {
+	i := int64(value)
+	return b.label(name, false, nil, nil, nil, &i, nil)
+}
+
+// LabelInt32 appends a pair of label name and int32 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelInt32(name string, value int32) *Builder {
+	i := int64(value)
+	return b.label(name, false, nil, nil, nil, &i, nil)
+}
+
+// LabelInt64 appends a pair of label name and int64 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelInt64(name string, value int64) *Builder {
+	i := int64(value)
+	return b.label(name, false, nil, nil, nil, &i, nil)
+}
+
+// LabelFloat32 appends a pair of label name and float32 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelFloat32(name string, value float32) *Builder {
+	f := float64(value)
+	return b.label(name, false, nil, nil, nil, nil, &f)
+}
+
+// LabelFloat64 appends a pair of label name and float64 label value to the Builder.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+func (b *Builder) LabelFloat64(name string, value float64) *Builder {
+	return b.label(name, false, nil, nil, nil, nil, &value)
 }
 
 // LabelStringer appends a pair of label name and label value (implementing [fmt.Stringer]) to the Builder.
@@ -135,7 +235,7 @@ func (b *Builder) LabelFloat(name string, value float64) *Builder {
 //   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 func (b *Builder) LabelStringer(name string, value fmt.Stringer) *Builder {
 	s := value.String()
-	return b.label(name, false, &s, nil, nil, nil)
+	return b.label(name, false, &s, nil, nil, nil, nil)
 }
 
 // LabelStringerQuote appends a pair of label name and label value (implementing [fmt.Stringer]) to the Builder.
@@ -146,10 +246,10 @@ func (b *Builder) LabelStringer(name string, value fmt.Stringer) *Builder {
 //   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
 func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
 	s := value.String()
-	return b.label(name, true, &s, nil, nil, nil)
+	return b.label(name, true, &s, nil, nil, nil, nil)
 }
 
-func (b *Builder) label(name string, escapeQuote bool, stringValue *string, boolValue *bool, int64Value *int64, float64Value *float64) *Builder {
+func (b *Builder) label(name string, escapeQuote bool, stringValue *string, boolValue *bool, uint64Value *uint64, int64Value *int64, float64Value *float64) *Builder {
 	if !b.flName {
 		log.Println("metric has not been called on this builder, skipping")
 		return b
@@ -192,6 +292,8 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 		b.appendString(*stringValue, escapeQuote)
 	case boolValue != nil:
 		b.appendBool(*boolValue)
+	case uint64Value != nil:
+		b.appendUint64(*uint64Value)
 	case int64Value != nil:
 		b.appendInt64(*int64Value)
 	case float64Value != nil:
@@ -230,6 +332,15 @@ func (b *Builder) appendInt64(i int64) {
 	buf := b.underlying.AvailableBuffer()
 	buf = append(buf, doubleQuotesByte)
 	buf = strconv.AppendInt(buf, i, 10)
+	buf = append(buf, doubleQuotesByte)
+	b.underlying.Write(buf)
+}
+
+// appendUint64 appends i to b's underlying buffer.
+func (b *Builder) appendUint64(i uint64) {
+	buf := b.underlying.AvailableBuffer()
+	buf = append(buf, doubleQuotesByte)
+	buf = strconv.AppendUint(buf, i, 10)
 	buf = append(buf, doubleQuotesByte)
 	b.underlying.Write(buf)
 }
