@@ -146,9 +146,11 @@ var testCases = []testCase{
 				{"point", float64(123.456), false},
 				{"num", int64(1234), false},
 				{"stringer", stringerValue{"spiderman"}, false},
+				{"uint8", uint8(128), false},
+				{"int", int(-42), false},
 			},
 		},
-		expected: `cassandra_query_count{path="/\"some\"/path",is_bidule="true",is_tac="false",point="123.456",num="1234",stringer="spiderman"}`,
+		expected: `cassandra_query_count{path="/\"some\"/path",is_bidule="true",is_tac="false",point="123.456",num="1234",stringer="spiderman",uint8="128",int="-42"}`,
 	},
 	{
 		name: "bool label values",
@@ -162,25 +164,40 @@ var testCases = []testCase{
 		expected: `cassandra_query_count{is_bidule="true",is_tac="false"}`,
 	},
 	{
-		name: "int64 label values",
+		name: "int label values",
 		input: input{
 			name: "cassandra_query_count",
 			labels: []label{
-				{"a", int64(69002), false},
-				{"b", int64(0), false},
-				{"c", int64(0000001), false},
-				{"d", int64(1), false},
+				{"a", int8(12), false},
+				{"b", int16(5555), false},
+				{"c", int32(69002), false},
+				{"d", int64(80085), false},
+				{"e", int(-1234), false},
 			},
 		},
-		expected: `cassandra_query_count{a="69002",b="0",c="1",d="1"}`,
+		expected: `cassandra_query_count{a="12",b="5555",c="69002",d="80085",e="-1234"}`,
 	},
 	{
-		name: "float64 label values",
+		name: "uint label values",
 		input: input{
 			name: "cassandra_query_count",
 			labels: []label{
-				{"a", float64(1), false},
-				{"b", float64(0), false},
+				{"a", uint8(12), false},
+				{"b", uint16(5555), false},
+				{"c", uint32(69002), false},
+				{"d", uint64(80085), false},
+				{"e", uint(1234), false},
+			},
+		},
+		expected: `cassandra_query_count{a="12",b="5555",c="69002",d="80085",e="1234"}`,
+	},
+	{
+		name: "float label values",
+		input: input{
+			name: "cassandra_query_count",
+			labels: []label{
+				{"a", float32(1), false},
+				{"b", float32(0), false},
 				{"c", float64(11111111.22222222), false},
 				{"d", float64(1234.456789), false},
 				{"e", float64(1234.4567890000), false},
@@ -216,10 +233,30 @@ func handleTestCase(t *testing.T, tc testCase) {
 			}
 		case bool:
 			b.LabelBool(label.name, v)
+		case uint8:
+			b.LabelUint8(label.name, v)
+		case uint16:
+			b.LabelUint16(label.name, v)
+		case uint32:
+			b.LabelUint32(label.name, v)
+		case uint64:
+			b.LabelUint64(label.name, v)
+		case uint:
+			b.LabelUint(label.name, v)
+		case int8:
+			b.LabelInt8(label.name, v)
+		case int16:
+			b.LabelInt16(label.name, v)
+		case int32:
+			b.LabelInt32(label.name, v)
 		case int64:
+			b.LabelInt64(label.name, v)
+		case int:
 			b.LabelInt(label.name, v)
+		case float32:
+			b.LabelFloat32(label.name, v)
 		case float64:
-			b.LabelFloat(label.name, v)
+			b.LabelFloat64(label.name, v)
 		case fmt.Stringer:
 			if label.shouldQuote {
 				b.LabelStringerQuote(label.name, v)
@@ -309,10 +346,30 @@ func BenchmarkBuilderTestCases(b *testing.B) {
 						}
 					case bool:
 						builder.LabelBool(label.name, v)
+					case uint8:
+						builder.LabelUint8(label.name, v)
+					case uint16:
+						builder.LabelUint16(label.name, v)
+					case uint32:
+						builder.LabelUint32(label.name, v)
+					case uint64:
+						builder.LabelUint64(label.name, v)
+					case uint:
+						builder.LabelUint(label.name, v)
+					case int8:
+						builder.LabelInt8(label.name, v)
+					case int16:
+						builder.LabelInt16(label.name, v)
+					case int32:
+						builder.LabelInt32(label.name, v)
 					case int64:
+						builder.LabelInt64(label.name, v)
+					case int:
 						builder.LabelInt(label.name, v)
+					case float32:
+						builder.LabelFloat32(label.name, v)
 					case float64:
-						builder.LabelFloat(label.name, v)
+						builder.LabelFloat64(label.name, v)
 					case fmt.Stringer:
 						if label.shouldQuote {
 							builder.LabelStringerQuote(label.name, v)
