@@ -31,7 +31,7 @@ func (b *Builder) GetOrCreateFloatCounter() *metrics.FloatCounter {
 	return metrics.GetOrCreateFloatCounter(b.String())
 }
 
-// GetOrCreateFloatCounterInSet calls [metris.Set.GetOrCreateFloatCounter] using the Builder's accumulated string as argument.
+// GetOrCreateFloatCounterInSet calls [metrics.Set.GetOrCreateFloatCounter] using the Builder's accumulated string as argument.
 func (b *Builder) GetOrCreateFloatCounterInSet(set *metrics.Set) *metrics.FloatCounter {
 	return set.GetOrCreateFloatCounter(b.String())
 }
