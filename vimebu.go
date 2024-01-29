@@ -156,11 +156,11 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 
 	ln := len(name)
 	if ln == 0 {
-		log.Println("label name must not be empty, skipping")
+		log.Printf("metric: %q, label name must not be empty, skipping", b.underlying)
 		return b
 	}
 	if ln > LabelNameMaxLen {
-		log.Println("label name contains too many bytes, skipping")
+		log.Printf("metric: %q, label name: %q, label name contains too many bytes, skipping", b.underlying, name)
 		return b
 	}
 
@@ -168,11 +168,11 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 	if stringValue != nil {
 		lv := len(*stringValue)
 		if lv == 0 {
-			log.Println("label value must not be empty, skipping")
+			log.Printf("metric: %q, label name: %q, label value must not be empty, skipping", b.underlying, name)
 			return b
 		}
 		if lv > LabelValueLen {
-			log.Println("label value contains too many bytes, skipping")
+			log.Printf("metric: %q, label name: %q, label value contains too many bytes, skipping", b.underlying, name)
 			return b
 		}
 	}
