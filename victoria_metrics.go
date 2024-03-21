@@ -116,7 +116,7 @@ func (b *Builder) GetOrCreateSummaryExtInSet(set *metrics.Set, window time.Durat
 	return set.GetOrCreateSummaryExt(b.String(), window, quantiles)
 }
 
-// GetOrCreateHistogram calls [metrics.GetOrCreateHistogram] using the Builder's accumulated string as argument.
+// NewSummaryExt calls [metrics.NewSummaryExt] using the Builder's accumulated string as argument.
 func (b *Builder) NewSummaryExt(window time.Duration, quantiles []float64) *metrics.Summary {
 	return metrics.NewSummaryExt(b.String(), window, quantiles)
 }
