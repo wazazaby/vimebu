@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -289,71 +288,24 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 
 	b.underlying.WriteString(name)
 	b.underlying.WriteByte(equalByte)
+	buf := b.underlying.AvailableBuffer()
 	switch {
 	case stringValue != nil:
-		b.appendString(*stringValue, escapeQuote)
+		buf = appendStringValue(buf, *stringValue, escapeQuote)
 	case boolValue != nil:
-		b.appendBool(*boolValue)
+		buf = appendBoolValue(buf, *boolValue)
 	case uint64Value != nil:
-		b.appendUint64(*uint64Value)
+		buf = appendUint64Value(buf, *uint64Value)
 	case int64Value != nil:
-		b.appendInt64(*int64Value)
+		buf = appendInt64Value(buf, *int64Value)
 	case float64Value != nil:
-		b.appendFloat64(*float64Value)
+		buf = appendFloat64Value(buf, *float64Value)
 	default: // Internal problem (wrong use of the label function), panic.
 		panic("unsupported case - no label value set")
 	}
+	b.underlying.Write(buf)
 
 	return b
-}
-
-// appendString quotes (if needed) and appends s to b's underlying buffer.
-func (b *Builder) appendString(s string, escapeQuote bool) {
-	buf := b.underlying.AvailableBuffer()
-	if escapeQuote {
-		buf = strconv.AppendQuote(buf, s)
-	} else {
-		buf = append(buf, doubleQuotesByte)
-		buf = append(buf, s...)
-		buf = append(buf, doubleQuotesByte)
-	}
-	b.underlying.Write(buf)
-}
-
-// appendBool appends bl to b's underlying buffer.
-func (b *Builder) appendBool(bl bool) {
-	buf := b.underlying.AvailableBuffer()
-	buf = append(buf, doubleQuotesByte)
-	buf = strconv.AppendBool(buf, bl)
-	buf = append(buf, doubleQuotesByte)
-	b.underlying.Write(buf)
-}
-
-// appendInt64 appends i to b's underlying buffer.
-func (b *Builder) appendInt64(i int64) {
-	buf := b.underlying.AvailableBuffer()
-	buf = append(buf, doubleQuotesByte)
-	buf = strconv.AppendInt(buf, i, 10)
-	buf = append(buf, doubleQuotesByte)
-	b.underlying.Write(buf)
-}
-
-// appendUint64 appends i to b's underlying buffer.
-func (b *Builder) appendUint64(i uint64) {
-	buf := b.underlying.AvailableBuffer()
-	buf = append(buf, doubleQuotesByte)
-	buf = strconv.AppendUint(buf, i, 10)
-	buf = append(buf, doubleQuotesByte)
-	b.underlying.Write(buf)
-}
-
-// appendFloat64 appends f to b's underlying buffer.
-func (b *Builder) appendFloat64(f float64) {
-	buf := b.underlying.AvailableBuffer()
-	buf = append(buf, doubleQuotesByte)
-	buf = strconv.AppendFloat(buf, f, 'f', -1, 64)
-	buf = append(buf, doubleQuotesByte)
-	b.underlying.Write(buf)
 }
 
 // String builds the metric by returning the accumulated string.
