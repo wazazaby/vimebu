@@ -4,10 +4,32 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"golang.org/x/exp/constraints"
 )
+
+type bytesBuffer struct {
+	b []byte
+}
+
+var ownBytesBufferPool = sync.Pool{
+	New: func() any {
+		return &bytesBuffer{
+			b: make([]byte, 0, 64),
+		}
+	},
+}
+
+func getBytesBuffer() *bytesBuffer {
+	return ownBytesBufferPool.Get().(*bytesBuffer)
+}
+
+func putBytesBuffer(b *bytesBuffer) {
+	b.b = b.b[:0]
+	ownBytesBufferPool.Put(b)
+}
 
 type Label func() (string, bool, *string, *bool, *uint64, *int64, *float64)
 
@@ -139,10 +161,10 @@ func BuilderFunc(name string, labels ...Label) string {
 		return name
 	}
 
-	b := getBuffer()
-	defer putBuffer(b)
+	buf := getBytesBuffer()
+	defer putBytesBuffer(buf)
 
-	b.WriteString(name)
+	buf.b = append(buf.b, name...)
 	var flLabel bool
 	for _, labelFunc := range labels {
 		if labelFunc == nil {
@@ -153,11 +175,11 @@ func BuilderFunc(name string, labels ...Label) string {
 
 		ln := len(name)
 		if ln == 0 {
-			log.Printf("metric: %q, label name must not be empty, skipping", b)
+			log.Printf("metric: %q, label name must not be empty, skipping", buf)
 			continue
 		}
 		if ln > LabelNameMaxLen {
-			log.Printf("metric: %q, label name: %q, label name contains too many bytes, skipping", b, name)
+			log.Printf("metric: %q, label name: %q, label name contains too many bytes, skipping", buf, name)
 			continue
 		}
 
@@ -165,45 +187,43 @@ func BuilderFunc(name string, labels ...Label) string {
 		if sv != nil {
 			lv := len(*sv)
 			if lv == 0 {
-				log.Printf("metric: %q, label name: %q, label value must not be empty, skipping", b, name)
+				log.Printf("metric: %q, label name: %q, label value must not be empty, skipping", buf, name)
 				continue
 			}
 			if lv > LabelValueLen {
-				log.Printf("metric: %q, label name: %q, label value contains too many bytes, skipping", b, name)
+				log.Printf("metric: %q, label name: %q, label value contains too many bytes, skipping", buf, name)
 				continue
 			}
 		}
 
 		if flLabel { // If we already wrote a label, start writing commas before label names.
-			b.WriteByte(commaByte)
+			buf.b = append(buf.b, commaByte)
 		} else { // Otherwise, mark flag as true for next pass.
-			b.WriteByte(leftBracketByte)
+			buf.b = append(buf.b, leftBracketByte)
 			flLabel = true
 		}
 
-		b.WriteString(name)
-		b.WriteByte(equalByte)
-		buf := b.AvailableBuffer()
+		buf.b = append(buf.b, name...)
+		buf.b = append(buf.b, equalByte)
 		switch {
 		case sv != nil:
-			buf = appendStringValue(buf, *sv, escapeQuote)
+			buf.b = appendStringValue(buf.b, *sv, escapeQuote)
 		case bv != nil:
-			buf = appendBoolValue(buf, *bv)
+			buf.b = appendBoolValue(buf.b, *bv)
 		case ui64v != nil:
-			buf = appendUint64Value(buf, *ui64v)
+			buf.b = appendUint64Value(buf.b, *ui64v)
 		case i64v != nil:
-			buf = appendInt64Value(buf, *i64v)
+			buf.b = appendInt64Value(buf.b, *i64v)
 		case f64v != nil:
-			buf = appendFloat64Value(buf, *f64v)
+			buf.b = appendFloat64Value(buf.b, *f64v)
 		default: // Internal problem (wrong use of the label function), panic.
 			panic("unsupported case - no label value set")
 		}
-		b.Write(buf)
 	}
 
 	if flLabel {
-		b.WriteByte(rightBracketByte)
+		buf.b = append(buf.b, rightBracketByte)
 	}
 
-	return unsafe.String(unsafe.SliceData(b.Bytes()), b.Len())
+	return unsafe.String(unsafe.SliceData(buf.b), len(buf.b))
 }
