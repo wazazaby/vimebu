@@ -1,27 +1,32 @@
 package vimebu
 
 import (
-	"bytes"
 	"sync"
 )
+
+type buffer struct {
+	buf []byte
+}
 
 // bytesBufferPool is a simple pool to create or retrieve a [bytes.Buffer].
 var bytesBufferPool = sync.Pool{
 	New: func() any {
-		return new(bytes.Buffer)
+		return &buffer{
+			buf: make([]byte, 0, 64),
+		}
 	},
 }
 
 // getBuffer acquires a [bytes.Buffer] from the pool.
-func getBuffer() *bytes.Buffer {
-	return bytesBufferPool.Get().(*bytes.Buffer)
+func getBuffer() *buffer {
+	return bytesBufferPool.Get().(*buffer)
 }
 
 // putBuffer resets and returns a [bytes.Buffer] to the pool.
-func putBuffer(b *bytes.Buffer) {
+func putBuffer(b *buffer) {
 	if b == nil {
 		return
 	}
-	b.Reset()
+	b.buf = b.buf[:0]
 	bytesBufferPool.Put(b)
 }
