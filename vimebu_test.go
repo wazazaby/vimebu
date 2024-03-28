@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 type stringerValue struct {
@@ -280,6 +281,27 @@ func TestBuilder(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestBuilderParallel(t *testing.T) {
+	var eg errgroup.Group
+	for i := 0; i < 400; i++ {
+		i := i
+		name := fmt.Sprintf("foobar%d", i)
+		eg.Go(func() error {
+			require.NotPanics(t, func() {
+				Metric(name).
+					Label("host", "foobar").
+					LabelBool("compressed", false).
+					LabelUint8("port", 80).
+					LabelFloat32("float", 12.3).
+					GetOrCreateCounter().
+					Add(300)
+			})
+			return nil
+		})
+	}
+	require.NoError(t, eg.Wait())
 }
 
 var (
