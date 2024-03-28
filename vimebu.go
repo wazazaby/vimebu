@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"unsafe"
 )
 
 var (
@@ -315,11 +314,5 @@ func (b *Builder) String() string {
 		b.u.f = append(b.u.f, rightBracketByte)
 	}
 
-	return b.unsafeString()
-}
-
-// unsafeString returns the accumulated string using
-// [strings.Builder]'s unsafe code to reduce allocations.
-func (b *Builder) unsafeString() string {
-	return unsafe.String(unsafe.SliceData(b.u.f), len(b.u.f))
+	return string(b.u.f)
 }
