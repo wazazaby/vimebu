@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"unsafe"
 )
 
 var (
@@ -317,13 +316,5 @@ func (b *Builder) String() string {
 	if b.flLabel {
 		b.underlying.WriteByte(rightBracketByte)
 	}
-
-	return b.unsafeString()
-}
-
-// unsafeString returns the accumulated string using
-// [strings.Builder]'s unsafe code to reduce allocations.
-func (b *Builder) unsafeString() string {
-	buf := b.underlying
-	return unsafe.String(unsafe.SliceData(buf.Bytes()), buf.Len())
+	return b.underlying.String()
 }
