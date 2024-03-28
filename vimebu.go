@@ -25,13 +25,13 @@ const (
 //
 // The zero value is ready to use.
 type Builder struct {
-	u               *buffer
+	buffer          *buffer
 	flName, flLabel bool
 }
 
 func (b *Builder) init() {
-	if b.u == nil {
-		b.u = getBuffer()
+	if b.buffer == nil {
+		b.buffer = getBuffer()
 	}
 }
 
@@ -70,7 +70,7 @@ func (b *Builder) Metric(name string) *Builder {
 
 	b.init()
 
-	b.u.f = append(b.u.f, name...)
+	b.buffer.f = append(b.buffer.f, name...)
 	b.flName = true
 
 	return b
@@ -256,11 +256,11 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 
 	ln := len(name)
 	if ln == 0 {
-		log.Printf("metric: %q, label name must not be empty, skipping", b.u)
+		log.Printf("metric: %q, label name must not be empty, skipping", b.buffer)
 		return b
 	}
 	if ln > LabelNameMaxLen {
-		log.Printf("metric: %q, label name: %q, label name contains too many bytes, skipping", b.u, name)
+		log.Printf("metric: %q, label name: %q, label name contains too many bytes, skipping", b.buffer, name)
 		return b
 	}
 
@@ -268,35 +268,35 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 	if stringValue != nil {
 		lv := len(*stringValue)
 		if lv == 0 {
-			log.Printf("metric: %q, label name: %q, label value must not be empty, skipping", b.u, name)
+			log.Printf("metric: %q, label name: %q, label value must not be empty, skipping", b.buffer, name)
 			return b
 		}
 		if lv > LabelValueLen {
-			log.Printf("metric: %q, label name: %q, label value contains too many bytes, skipping", b.u, name)
+			log.Printf("metric: %q, label name: %q, label value contains too many bytes, skipping", b.buffer, name)
 			return b
 		}
 	}
 
 	if b.flLabel { // If we already wrote a label, start writing commas before label names.
-		b.u.f = append(b.u.f, commaByte)
+		b.buffer.f = append(b.buffer.f, commaByte)
 	} else { // Otherwise, mark flag as true for next pass.
-		b.u.f = append(b.u.f, leftBracketByte)
+		b.buffer.f = append(b.buffer.f, leftBracketByte)
 		b.flLabel = true
 	}
 
-	b.u.f = append(b.u.f, name...)
-	b.u.f = append(b.u.f, equalByte)
+	b.buffer.f = append(b.buffer.f, name...)
+	b.buffer.f = append(b.buffer.f, equalByte)
 	switch {
 	case stringValue != nil:
-		b.u.f = appendStringValue(b.u.f, *stringValue, escapeQuote)
+		b.buffer.f = appendStringValue(b.buffer.f, *stringValue, escapeQuote)
 	case boolValue != nil:
-		b.u.f = appendBoolValue(b.u.f, *boolValue)
+		b.buffer.f = appendBoolValue(b.buffer.f, *boolValue)
 	case uint64Value != nil:
-		b.u.f = appendUint64Value(b.u.f, *uint64Value)
+		b.buffer.f = appendUint64Value(b.buffer.f, *uint64Value)
 	case int64Value != nil:
-		b.u.f = appendInt64Value(b.u.f, *int64Value)
+		b.buffer.f = appendInt64Value(b.buffer.f, *int64Value)
 	case float64Value != nil:
-		b.u.f = appendFloat64Value(b.u.f, *float64Value)
+		b.buffer.f = appendFloat64Value(b.buffer.f, *float64Value)
 	default: // Internal problem (wrong use of the label function), panic.
 		panic("unsupported case - no label value set")
 	}
@@ -306,13 +306,13 @@ func (b *Builder) label(name string, escapeQuote bool, stringValue *string, bool
 
 // String builds the metric by returning the accumulated string.
 func (b *Builder) String() string {
-	defer putBuffer(b.u)
+	defer putBuffer(b.buffer)
 	if !b.flName {
 		return ""
 	}
 	if b.flLabel {
-		b.u.f = append(b.u.f, rightBracketByte)
+		b.buffer.f = append(b.buffer.f, rightBracketByte)
 	}
 
-	return string(b.u.f)
+	return string(b.buffer.f)
 }
