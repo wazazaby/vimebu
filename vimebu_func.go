@@ -101,8 +101,8 @@ func LabelBoolCond(name string, value bool, predicate func() bool) Label {
 }
 
 func LabelUint[T constraints.Unsigned](name string, value T) Label {
-	i := uint64(value)
 	return func() (string, bool, *string, *bool, *uint64, *int64, *float64) {
+		i := uint64(value)
 		return name, false, nil, nil, &i, nil, nil
 	}
 }
@@ -115,7 +115,14 @@ func LabelUintCond[T constraints.Unsigned](name string, value T, predicate func(
 }
 
 func LabelInt[T constraints.Signed](name string, value T) Label {
-	i := int64(value)
+	return func() (string, bool, *string, *bool, *uint64, *int64, *float64) {
+		i := int64(value)
+		return name, false, nil, nil, nil, &i, nil
+	}
+}
+
+func LabelInt2(name string, value int) Label {
+	i := (int64)(value)
 	return func() (string, bool, *string, *bool, *uint64, *int64, *float64) {
 		return name, false, nil, nil, nil, &i, nil
 	}
@@ -129,8 +136,8 @@ func LabelIntCond[T constraints.Signed](name string, value T, predicate func() b
 }
 
 func LabelFloat[T constraints.Float](name string, value T) Label {
-	f := float64(value)
 	return func() (string, bool, *string, *bool, *uint64, *int64, *float64) {
+		f := float64(value)
 		return name, false, nil, nil, nil, nil, &f
 	}
 }

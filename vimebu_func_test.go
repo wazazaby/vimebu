@@ -82,6 +82,20 @@ func TestLabelCond(t *testing.T) {
 	require.Equal(t, `test_cond{should="appear",present="/and/\"quoted\"",int="1234"}`, result)
 }
 
+func BenchmarkBuilderFuncFast(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = BuilderFunc("test_with_builder_func",
+			LabelString("test", "teddy"),
+			LabelStringQuote("quote", `"test"`),
+			LabelBool("compressed", true),
+			LabelFloat("float", 12.3),
+			LabelUint("uint", uint8(69)),
+			LabelInt("int", 667),
+			LabelInt2("int2", 667),
+		)
+	}
+}
+
 func BenchmarkBuilderFuncTestCases(b *testing.B) {
 	for _, tc := range testCases {
 		if tc.skipBench {
