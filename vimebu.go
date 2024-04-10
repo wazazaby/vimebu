@@ -99,6 +99,30 @@ func (b *Builder) Label(name, value string) *Builder {
 	return b.label(name, false, &value, nil, nil, nil, nil)
 }
 
+// LabelErrQuote appends a pair of label name and error label value to the Builder. Quotes inside the error label value will be escaped.
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+//   - the label value is empty or contains more than [vimebu.LabelValueMaxLen].
+func (b *Builder) LabelErrQuote(name string, err error) *Builder {
+	value := err.Error()
+	return b.label(name, true, &value, nil, nil, nil, nil)
+}
+
+// LabelErr appends a pair of label name and error label value to the Builder.
+// Unlike [vimebu.Builder.LabelErrQuote], quotes inside the error label value will not be escaped.
+// It's better suited for a label value where you control the input (either it is already sanitized, or it comes from a const or an enum for example).
+//
+// NoOp if :
+//   - no metric name has been set using [vimebu.Builder.Metric].
+//   - the label name is empty or contains more than [vimebu.LabelNameMaxLen].
+//   - the label value is empty or contains more than [vimebu.LabelValueMaxLen].
+func (b *Builder) LabelErr(name string, err error) *Builder {
+	value := err.Error()
+	return b.label(name, false, &value, nil, nil, nil, nil)
+}
+
 // LabelBool appends a pair of label name and boolean label value to the Builder.
 //
 // NoOp if :
