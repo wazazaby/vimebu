@@ -91,9 +91,12 @@ func getHTTPRequestCounter(path string) *metrics.Counter {
 ```
 
 ### Create metrics with label values that aren't string
-You can use `Builder.LabelBool`, `Builder.LabelInt`, `Builder.LabelFloat` or `Builder.LabelStringer` to append boolean, integer, float or fmt.Stringer label values to the builder.
-
-For now, vimebu doesn't expose more helper methods.
+You can use these methods to append specific value types to the builder :
+* `Builder.LabelBool` for booleans
+* `Builder.LabelInt` and variations for signed integers
+* `Builder.LabelUint` and variations for unsigned integers
+* `Builder.LabelFloat` and variations for floats
+* `Builder.LabelStringer` for values implementing the `fmt.Stringer` interface
 
 ## Gotchas
 When a metric is invalid (empty name, empty label name or value etc), vimebu will skip and log to os.Stderr.
