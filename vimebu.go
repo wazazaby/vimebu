@@ -14,11 +14,11 @@ var (
 )
 
 const (
-	leftBracketByte  = byte('{')
-	rightBracketByte = byte('}')
-	commaByte        = byte(',')
-	equalByte        = byte('=')
-	doubleQuotesByte = byte('"')
+	leftBracketByte  byte = '{'
+	rightBracketByte byte = '}'
+	commaByte        byte = ','
+	equalByte        byte = '='
+	doubleQuotesByte byte = '"'
 )
 
 // Builder is used to efficiently build a VictoriaMetrics metric.
