@@ -2,8 +2,6 @@ package vimebu
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,10 +56,7 @@ var testCases = []testCase{
 		},
 		expected: `http_request_duration_seconds`,
 	},
-	{
-		name:      "no name",
-		skipBench: true,
-	},
+
 	{
 		name: "metric with a lot of labels",
 		input: input{
@@ -112,31 +107,6 @@ var testCases = []testCase{
 		expected: `api_http_requests_total{status="Internal Server Error",error="something went \"horribly\" wrong",host="1.2.3.4",path="some/path/\"with\"/quo\"tes"}`,
 	},
 	{
-		name: "metric name contains too many bytes",
-		input: input{
-			name: strings.Repeat("b", 512),
-		},
-		skipBench: true,
-	},
-	{
-		name: "label name contains too many bytes",
-		input: input{
-			name:   "api_http_requests_total",
-			labels: []label{{strings.Repeat("b", 256), "test", false}},
-		},
-		expected:  `api_http_requests_total`,
-		skipBench: true,
-	},
-	{
-		name: "label value contains too many bytes",
-		input: input{
-			name:   "api_http_requests_total",
-			labels: []label{{"test", strings.Repeat("b", 2048), false}},
-		},
-		expected:  `api_http_requests_total`,
-		skipBench: true,
-	},
-	{
 		name: "mixed label value types",
 		input: input{
 			name: "cassandra_query_count",
@@ -149,9 +119,10 @@ var testCases = []testCase{
 				{"stringer", stringerValue{"spiderman"}, false},
 				{"uint8", uint8(128), false},
 				{"int", int(-42), false},
+				{"error", fmt.Errorf("i/o timeout"), false},
 			},
 		},
-		expected: `cassandra_query_count{path="/\"some\"/path",is_bidule="true",is_tac="false",point="123.456",num="1234",stringer="spiderman",uint8="128",int="-42"}`,
+		expected: `cassandra_query_count{path="/\"some\"/path",is_bidule="true",is_tac="false",point="123.456",num="1234",stringer="spiderman",uint8="128",int="-42",error="i/o timeout"}`,
 	},
 	{
 		name: "bool label values",
@@ -219,66 +190,97 @@ var testCases = []testCase{
 	},
 }
 
-func handleTestCase(t *testing.T, tc testCase) {
-	var b Builder
-
-	b.Metric(tc.input.name)
-
-	for _, label := range tc.input.labels {
-		switch v := label.value.(type) {
-		case string:
-			if label.shouldQuote {
-				b.LabelQuote(label.name, v)
-			} else {
-				b.Label(label.name, v)
-			}
-		case bool:
-			b.LabelBool(label.name, v)
-		case uint8:
-			b.LabelUint8(label.name, v)
-		case uint16:
-			b.LabelUint16(label.name, v)
-		case uint32:
-			b.LabelUint32(label.name, v)
-		case uint64:
-			b.LabelUint64(label.name, v)
-		case uint:
-			b.LabelUint(label.name, v)
-		case int8:
-			b.LabelInt8(label.name, v)
-		case int16:
-			b.LabelInt16(label.name, v)
-		case int32:
-			b.LabelInt32(label.name, v)
-		case int64:
-			b.LabelInt64(label.name, v)
-		case int:
-			b.LabelInt(label.name, v)
-		case float32:
-			b.LabelFloat32(label.name, v)
-		case float64:
-			b.LabelFloat64(label.name, v)
-		case fmt.Stringer:
-			if label.shouldQuote {
-				b.LabelStringerQuote(label.name, v)
-			} else {
-				b.LabelStringer(label.name, v)
-			}
-		default:
-			panic(fmt.Sprintf("unsupported type %T", v))
+func addLabelAnyToBuilder(builder *Builder, label label) {
+	switch v := label.value.(type) {
+	case string:
+		if label.shouldQuote {
+			builder.LabelStringQuote(label.name, v)
+		} else {
+			builder.LabelString(label.name, v)
 		}
+	case bool:
+		builder.LabelBool(label.name, v)
+	case uint8:
+		builder.LabelUint8(label.name, v)
+	case uint16:
+		builder.LabelUint16(label.name, v)
+	case uint32:
+		builder.LabelUint32(label.name, v)
+	case uint64:
+		builder.LabelUint64(label.name, v)
+	case uint:
+		builder.LabelUint(label.name, v)
+	case int8:
+		builder.LabelInt8(label.name, v)
+	case int16:
+		builder.LabelInt16(label.name, v)
+	case int32:
+		builder.LabelInt32(label.name, v)
+	case int64:
+		builder.LabelInt64(label.name, v)
+	case int:
+		builder.LabelInt(label.name, v)
+	case float32:
+		builder.LabelFloat32(label.name, v)
+	case float64:
+		builder.LabelFloat64(label.name, v)
+	case fmt.Stringer:
+		if label.shouldQuote {
+			builder.LabelStringerQuote(label.name, v)
+		} else {
+			builder.LabelStringer(label.name, v)
+		}
+	case error:
+		if label.shouldQuote {
+			builder.LabelError(label.name, v)
+		} else {
+			builder.LabelErrorQuote(label.name, v)
+		}
+	default:
+		panic(fmt.Sprintf("unsupported type %T", v))
 	}
+}
 
-	result := b.String()
-	require.Equal(t, tc.expected, result)
+func TestBuilderMetricEmptyName(t *testing.T) {
+	require.Panics(t, func() {
+		Metric("")
+	})
+
+	require.Panics(t, func() {
+		var builder Builder
+		builder.Metric("")
+	})
+}
+
+func TestBuilderMetricAlreadyCalled(t *testing.T) {
+	var builder Builder
+	builder.Metric("test_metric")
+
+	require.Panics(t, func() {
+		builder.Metric("another_metric")
+	})
+}
+
+func TestBuilderMetricNotCalled(t *testing.T) {
+	var builder Builder
+
+	require.Panics(t, func() {
+		builder.LabelString("host", "1.2.3.4")
+	})
 }
 
 func TestBuilder(t *testing.T) {
 	t.Parallel()
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require.NotPanics(t, func() {
-				handleTestCase(t, tc)
+				builder := Metric(tc.input.name)
+				for _, label := range tc.input.labels {
+					addLabelAnyToBuilder(builder, label)
+				}
+				result := builder.String()
+				require.Equal(t, tc.expected, result)
 			})
 		})
 	}
@@ -286,16 +288,17 @@ func TestBuilder(t *testing.T) {
 
 func TestBuilderParallel(t *testing.T) {
 	var eg errgroup.Group
-	for i := 0; i < 400; i++ {
+	for i := range 400 {
 		i := i
 		name := fmt.Sprintf("foobar%d", i)
 		eg.Go(func() error {
 			require.NotPanics(t, func() {
 				Metric(name).
-					Label("host", "foobar").
+					LabelString("host", "foobar").
 					LabelBool("compressed", false).
 					LabelUint8("port", 80).
 					LabelFloat32("float", 12.3).
+					LabelError("err", nil).
 					GetOrCreateCounter().
 					Add(300)
 			})
@@ -303,63 +306,6 @@ func TestBuilderParallel(t *testing.T) {
 		})
 	}
 	require.NoError(t, eg.Wait())
-}
-
-var (
-	status  = "Bad Request"
-	path    = `some/path/"with"/quo"tes`
-	host    = "1.2.3.4"
-	cluster = "guava"
-)
-
-func BenchmarkBuilder(b *testing.B) {
-	b.ReportAllocs()
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			var builder Builder
-			_ = builder.Metric("http_request_duration_seconds").
-				Label("status", status).
-				LabelQuote("path", path).
-				Label("host", host).
-				Label("cluster", cluster).
-				String()
-		}
-	})
-}
-
-func BenchmarkBuilderAppendQuoteNone(b *testing.B) {
-	b.ReportAllocs()
-
-	pathSafe := strconv.Quote(path)
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			var builder Builder
-			_ = builder.Metric("http_request_duration_seconds").
-				Label("status", status).
-				Label("path", pathSafe).
-				Label("host", host).
-				Label("cluster", cluster).
-				String()
-		}
-	})
-}
-
-func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
-	b.ReportAllocs()
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			var builder Builder
-			_ = builder.Metric("http_request_duration_seconds").
-				LabelQuote("status", status).
-				LabelQuote("path", path).
-				LabelQuote("host", host).
-				LabelQuote("cluster", cluster).
-				String()
-		}
-	})
 }
 
 func BenchmarkBuilderTestCasesParallel(b *testing.B) {
@@ -387,7 +333,7 @@ func BenchmarkBuilderTestCasesSequential(b *testing.B) {
 			continue
 		}
 		b.Run(tc.name, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				doBenchmarkCase(tc.input)
 			}
 		})
@@ -395,51 +341,9 @@ func BenchmarkBuilderTestCasesSequential(b *testing.B) {
 }
 
 func doBenchmarkCase(in input) {
-	var builder Builder
-	builder.Metric(in.name)
+	builder := Metric(in.name)
 	for _, label := range in.labels {
-		switch v := label.value.(type) {
-		case string:
-			if label.shouldQuote {
-				builder.LabelQuote(label.name, v)
-			} else {
-				builder.Label(label.name, v)
-			}
-		case bool:
-			builder.LabelBool(label.name, v)
-		case uint8:
-			builder.LabelUint8(label.name, v)
-		case uint16:
-			builder.LabelUint16(label.name, v)
-		case uint32:
-			builder.LabelUint32(label.name, v)
-		case uint64:
-			builder.LabelUint64(label.name, v)
-		case uint:
-			builder.LabelUint(label.name, v)
-		case int8:
-			builder.LabelInt8(label.name, v)
-		case int16:
-			builder.LabelInt16(label.name, v)
-		case int32:
-			builder.LabelInt32(label.name, v)
-		case int64:
-			builder.LabelInt64(label.name, v)
-		case int:
-			builder.LabelInt(label.name, v)
-		case float32:
-			builder.LabelFloat32(label.name, v)
-		case float64:
-			builder.LabelFloat64(label.name, v)
-		case fmt.Stringer:
-			if label.shouldQuote {
-				builder.LabelStringerQuote(label.name, v)
-			} else {
-				builder.LabelStringer(label.name, v)
-			}
-		default:
-			panic(fmt.Sprintf("unsupported type %T", v))
-		}
+		addLabelAnyToBuilder(builder, label)
 	}
 	_ = builder.String()
 }
