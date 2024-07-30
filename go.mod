@@ -1,10 +1,11 @@
-module github.com/wazazaby/vimebu
+module github.com/wazazaby/vimebu/v2
 
-go 1.21
+go 1.22
 
 require (
 	github.com/VictoriaMetrics/metrics v1.35.1
 	github.com/stretchr/testify v1.9.0
+	github.com/wazazaby/gs v0.3.0
 	golang.org/x/sync v0.8.0
 )
 
@@ -16,5 +17,3 @@ require (
 	golang.org/x/sys v0.15.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-retract v1.3.0
