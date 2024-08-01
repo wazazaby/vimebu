@@ -362,7 +362,7 @@ func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
 	})
 }
 
-func BenchmarkBuilderTestCases(b *testing.B) {
+func BenchmarkBuilderTestCasesParallel(b *testing.B) {
 	b.ReportAllocs()
 
 	for _, tc := range testCases {
@@ -372,56 +372,74 @@ func BenchmarkBuilderTestCases(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			b.RunParallel(func(p *testing.PB) {
 				for p.Next() {
-					var builder Builder
-					builder.Metric(tc.input.name)
-
-					for _, label := range tc.input.labels {
-						switch v := label.value.(type) {
-						case string:
-							if label.shouldQuote {
-								builder.LabelQuote(label.name, v)
-							} else {
-								builder.Label(label.name, v)
-							}
-						case bool:
-							builder.LabelBool(label.name, v)
-						case uint8:
-							builder.LabelUint8(label.name, v)
-						case uint16:
-							builder.LabelUint16(label.name, v)
-						case uint32:
-							builder.LabelUint32(label.name, v)
-						case uint64:
-							builder.LabelUint64(label.name, v)
-						case uint:
-							builder.LabelUint(label.name, v)
-						case int8:
-							builder.LabelInt8(label.name, v)
-						case int16:
-							builder.LabelInt16(label.name, v)
-						case int32:
-							builder.LabelInt32(label.name, v)
-						case int64:
-							builder.LabelInt64(label.name, v)
-						case int:
-							builder.LabelInt(label.name, v)
-						case float32:
-							builder.LabelFloat32(label.name, v)
-						case float64:
-							builder.LabelFloat64(label.name, v)
-						case fmt.Stringer:
-							if label.shouldQuote {
-								builder.LabelStringerQuote(label.name, v)
-							} else {
-								builder.LabelStringer(label.name, v)
-							}
-						default:
-							panic(fmt.Sprintf("unsupported type %T", v))
-						}
-					}
-					_ = builder.String()
+					doBenchmarkCase(tc.input)
 				}
 			})
 		})
 	}
+}
+
+func BenchmarkBuilderTestCasesSequential(b *testing.B) {
+	b.ReportAllocs()
+
+	for _, tc := range testCases {
+		if tc.skipBench {
+			continue
+		}
+		b.Run(tc.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				doBenchmarkCase(tc.input)
+			}
+		})
+	}
+}
+
+func doBenchmarkCase(in input) {
+	var builder Builder
+	builder.Metric(in.name)
+	for _, label := range in.labels {
+		switch v := label.value.(type) {
+		case string:
+			if label.shouldQuote {
+				builder.LabelQuote(label.name, v)
+			} else {
+				builder.Label(label.name, v)
+			}
+		case bool:
+			builder.LabelBool(label.name, v)
+		case uint8:
+			builder.LabelUint8(label.name, v)
+		case uint16:
+			builder.LabelUint16(label.name, v)
+		case uint32:
+			builder.LabelUint32(label.name, v)
+		case uint64:
+			builder.LabelUint64(label.name, v)
+		case uint:
+			builder.LabelUint(label.name, v)
+		case int8:
+			builder.LabelInt8(label.name, v)
+		case int16:
+			builder.LabelInt16(label.name, v)
+		case int32:
+			builder.LabelInt32(label.name, v)
+		case int64:
+			builder.LabelInt64(label.name, v)
+		case int:
+			builder.LabelInt(label.name, v)
+		case float32:
+			builder.LabelFloat32(label.name, v)
+		case float64:
+			builder.LabelFloat64(label.name, v)
+		case fmt.Stringer:
+			if label.shouldQuote {
+				builder.LabelStringerQuote(label.name, v)
+			} else {
+				builder.LabelStringer(label.name, v)
+			}
+		default:
+			panic(fmt.Sprintf("unsupported type %T", v))
+		}
+	}
+	_ = builder.String()
 }
