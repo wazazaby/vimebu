@@ -1,6 +1,13 @@
 package vimebu
 
-import "github.com/wazazaby/gs"
+import (
+	"github.com/wazazaby/gs"
+)
+
+const (
+	// smallBufferSize is an initial allocation minimal capacity.
+	smallBufferSize = 64
+)
 
 var (
 	DefaultBuilderPool = NewBuilderPool()
@@ -9,7 +16,9 @@ var (
 func NewBuilderPool() *BuilderPool {
 	return &BuilderPool{
 		pool: gs.NewPool(func() *Builder {
-			return new(Builder)
+			return &Builder{
+				buf: make([]byte, 0, smallBufferSize),
+			}
 		}),
 	}
 }
