@@ -5,7 +5,6 @@ go 1.22
 require (
 	github.com/VictoriaMetrics/metrics v1.35.1
 	github.com/stretchr/testify v1.9.0
-	github.com/wazazaby/gs v0.3.0
 	golang.org/x/sync v0.8.0
 )
 

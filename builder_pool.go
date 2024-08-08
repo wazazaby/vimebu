@@ -1,8 +1,6 @@
 package vimebu
 
-import (
-	"github.com/wazazaby/gs"
-)
+import "sync"
 
 const (
 	// smallBufferSize is an initial allocation minimal capacity.
@@ -15,20 +13,22 @@ var (
 
 func NewBuilderPool() *BuilderPool {
 	return &BuilderPool{
-		pool: gs.NewPool(func() *Builder {
-			return &Builder{
-				buf: make([]byte, 0, smallBufferSize),
-			}
-		}),
+		pool: sync.Pool{
+			New: func() any {
+				return &Builder{
+					buf: make([]byte, 0, smallBufferSize),
+				}
+			},
+		},
 	}
 }
 
 type BuilderPool struct {
-	pool gs.Pool[*Builder]
+	pool sync.Pool
 }
 
 func (p *BuilderPool) Acquire() *Builder {
-	return p.pool.Get()
+	return p.pool.Get().(*Builder)
 }
 
 func (p *BuilderPool) Release(b *Builder) {
