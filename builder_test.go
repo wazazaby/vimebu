@@ -2,8 +2,6 @@ package vimebu
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -112,31 +110,6 @@ var testCases = []testCase{
 		expected: `api_http_requests_total{status="Internal Server Error",error="something went \"horribly\" wrong",host="1.2.3.4",path="some/path/\"with\"/quo\"tes"}`,
 	},
 	{
-		name: "metric name contains too many bytes",
-		input: input{
-			name: strings.Repeat("b", 512),
-		},
-		skipBench: true,
-	},
-	{
-		name: "label name contains too many bytes",
-		input: input{
-			name:   "api_http_requests_total",
-			labels: []label{{strings.Repeat("b", 256), "test", false}},
-		},
-		expected:  `api_http_requests_total`,
-		skipBench: true,
-	},
-	{
-		name: "label value contains too many bytes",
-		input: input{
-			name:   "api_http_requests_total",
-			labels: []label{{"test", strings.Repeat("b", 2048), false}},
-		},
-		expected:  `api_http_requests_total`,
-		skipBench: true,
-	},
-	{
 		name: "mixed label value types",
 		input: input{
 			name: "cassandra_query_count",
@@ -228,9 +201,9 @@ func handleTestCase(t *testing.T, tc testCase) {
 		switch v := label.value.(type) {
 		case string:
 			if label.shouldQuote {
-				b.LabelQuote(label.name, v)
+				b.LabelStringQuote(label.name, v)
 			} else {
-				b.Label(label.name, v)
+				b.LabelString(label.name, v)
 			}
 		case bool:
 			b.LabelBool(label.name, v)
@@ -291,8 +264,10 @@ func TestBuilderParallel(t *testing.T) {
 		name := fmt.Sprintf("foobar%d", i)
 		eg.Go(func() error {
 			require.NotPanics(t, func() {
-				Metric(name).
-					Label("host", "foobar").
+				DefaultBuilderPool.
+					Acquire().
+					Metric(name).
+					LabelString("host", "foobar").
 					LabelBool("compressed", false).
 					LabelUint8("port", 80).
 					LabelFloat32("float", 12.3).
@@ -303,63 +278,6 @@ func TestBuilderParallel(t *testing.T) {
 		})
 	}
 	require.NoError(t, eg.Wait())
-}
-
-var (
-	status  = "Bad Request"
-	path    = `some/path/"with"/quo"tes`
-	host    = "1.2.3.4"
-	cluster = "guava"
-)
-
-func BenchmarkBuilder(b *testing.B) {
-	b.ReportAllocs()
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			var builder Builder
-			_ = builder.Metric("http_request_duration_seconds").
-				Label("status", status).
-				LabelQuote("path", path).
-				Label("host", host).
-				Label("cluster", cluster).
-				String()
-		}
-	})
-}
-
-func BenchmarkBuilderAppendQuoteNone(b *testing.B) {
-	b.ReportAllocs()
-
-	pathSafe := strconv.Quote(path)
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			var builder Builder
-			_ = builder.Metric("http_request_duration_seconds").
-				Label("status", status).
-				Label("path", pathSafe).
-				Label("host", host).
-				Label("cluster", cluster).
-				String()
-		}
-	})
-}
-
-func BenchmarkBuilderAppendQuoteOnly(b *testing.B) {
-	b.ReportAllocs()
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			var builder Builder
-			_ = builder.Metric("http_request_duration_seconds").
-				LabelQuote("status", status).
-				LabelQuote("path", path).
-				LabelQuote("host", host).
-				LabelQuote("cluster", cluster).
-				String()
-		}
-	})
 }
 
 func BenchmarkBuilderTestCasesParallel(b *testing.B) {
@@ -395,15 +313,14 @@ func BenchmarkBuilderTestCasesSequential(b *testing.B) {
 }
 
 func doBenchmarkCase(in input) {
-	var builder Builder
-	builder.Metric(in.name)
+	builder := Metric(in.name)
 	for _, label := range in.labels {
 		switch v := label.value.(type) {
 		case string:
 			if label.shouldQuote {
-				builder.LabelQuote(label.name, v)
+				builder.LabelStringQuote(label.name, v)
 			} else {
-				builder.Label(label.name, v)
+				builder.LabelString(label.name, v)
 			}
 		case bool:
 			builder.LabelBool(label.name, v)
