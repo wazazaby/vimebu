@@ -16,6 +16,8 @@ const (
 	floatFormattingVerb    byte = 'f'
 	floatShortestPrecision int  = -1
 	floatBitSize           int  = 64
+
+	errorLabelName string = "error"
 )
 
 // Builder is used to efficiently build a VictoriaMetrics metric.
@@ -112,7 +114,19 @@ func (b *Builder) LabelStringQuote(name, value string) *Builder {
 // NoOp if the label name is empty, or if err is nil.
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelError(name string, err error) *Builder {
+func (b *Builder) LabelError(err error) *Builder {
+	if err == nil {
+		return b
+	}
+	return b.LabelString(errorLabelName, err.Error())
+}
+
+// LabelNamedError adds a label with a value implementing the error interface to the [Builder].
+//
+// NoOp if the label name is empty, or if err is nil.
+//
+// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+func (b *Builder) LabelNamedError(name string, err error) *Builder {
 	if err == nil {
 		return b
 	}
@@ -125,7 +139,20 @@ func (b *Builder) LabelError(name string, err error) *Builder {
 // NoOp if the label name is empty, or if err is nil.
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelErrorQuote(name string, err error) *Builder {
+func (b *Builder) LabelErrorQuote(err error) *Builder {
+	if err == nil {
+		return b
+	}
+	return b.LabelStringQuote(errorLabelName, err.Error())
+}
+
+// LabelNamedErrorQuote adds a label with a value implementing the error interface to the [Builder].
+// Quotes inside label value will be escaped using [strconv.AppendQuote].
+//
+// NoOp if the label name is empty, or if err is nil.
+//
+// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+func (b *Builder) LabelNamedErrorQuote(name string, err error) *Builder {
 	if err == nil {
 		return b
 	}

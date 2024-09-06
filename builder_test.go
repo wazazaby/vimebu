@@ -232,9 +232,9 @@ func addLabelAnyToBuilder(builder *Builder, label label) {
 		}
 	case error:
 		if label.shouldQuote {
-			builder.LabelError(label.name, v)
+			builder.LabelNamedError(label.name, v)
 		} else {
-			builder.LabelErrorQuote(label.name, v)
+			builder.LabelNamedErrorQuote(label.name, v)
 		}
 	default:
 		panic(fmt.Sprintf("unsupported type %T", v))
@@ -298,7 +298,7 @@ func TestBuilderParallel(t *testing.T) {
 					LabelBool("compressed", false).
 					LabelUint8("port", 80).
 					LabelFloat32("float", 12.3).
-					LabelError("err", nil).
+					LabelNamedError("err", nil).
 					GetOrCreateCounter().
 					Add(300)
 			})
@@ -346,4 +346,96 @@ func doBenchmarkCase(in input) {
 		addLabelAnyToBuilder(builder, label)
 	}
 	_ = builder.String()
+}
+
+func BenchmarkCompareSequentialFmt(b *testing.B) {
+	b.ReportAllocs()
+
+	var (
+		host    = "255.255.255.255"
+		version = 3
+		err     = fmt.Errorf("mayday")
+		test    bool
+	)
+
+	for range b.N {
+		_ = fmt.Sprintf(`some_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		_ = fmt.Sprintf(`some_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		_ = fmt.Sprintf(`some_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		_ = fmt.Sprintf(`some_metric_name_four{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_four{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+	}
+}
+
+func BenchmarkCompareParralelFmt(b *testing.B) {
+	b.ReportAllocs()
+
+	var (
+		host    = "255.255.255.255"
+		version = 3
+		err     = fmt.Errorf("mayday")
+		test    bool
+	)
+
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			_ = fmt.Sprintf(`some_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+			_ = fmt.Sprintf(`some_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+			_ = fmt.Sprintf(`some_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+			_ = fmt.Sprintf(`some_metric_name_four{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+			_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+			_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+			_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+			_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_four{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		}
+	})
+}
+
+func BenchmarkCompareSequentialVimebu(b *testing.B) {
+	b.ReportAllocs()
+
+	var (
+		host    = "255.255.255.255"
+		version = 3
+		err     = fmt.Errorf("mayday")
+		test    bool
+	)
+
+	for range b.N {
+		_ = Metric("some_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		_ = Metric("some_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		_ = Metric("some_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		_ = Metric("some_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+	}
+}
+
+func BenchmarkCompareParralelVimebu(b *testing.B) {
+	b.ReportAllocs()
+
+	var (
+		host    = "255.255.255.255"
+		version = 3
+		err     = fmt.Errorf("mayday")
+		test    bool
+	)
+
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			_ = Metric("some_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+			_ = Metric("some_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+			_ = Metric("some_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+			_ = Metric("some_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		}
+	})
 }
