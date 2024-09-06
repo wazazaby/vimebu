@@ -96,6 +96,28 @@ You can use these methods to append specific value types to the builder :
 * `Builder.LabelStringer` for values implementing the `fmt.Stringer` interface
 * `Builder.LabelError` for values implementing the `error` interface
 
+### Benchmark comparison
+Here are some simple benchmarks comparing building a metric using the `fmt` package vs vimebu.
+Each metric is built with 4 labels (string, int, error and bool).
+
+As you can see, in the sequential benchmarks, vimebu is about twice as fast.
+For the parralel benchmarks, vimebu is about ~30% faster.
+
+In each case, it allocates half as much per operation. Yay!
+```
+❯ go test -bench="BenchmarkCompare" -benchmem -run=NONE
+goos: darwin
+goarch: arm64
+pkg: github.com/wazazaby/vimebu/v2
+cpu: Apple M1 Max
+BenchmarkCompareSequentialFmt-10          717055              1660 ns/op            1024 B/op         16 allocs/op
+BenchmarkCompareParralelFmt-10           2279166               528.0 ns/op          1024 B/op         16 allocs/op
+BenchmarkCompareSequentialVimebu-10      1557618               765.0 ns/op           896 B/op          8 allocs/op
+BenchmarkCompareParralelVimebu-10        3098870               398.5 ns/op           896 B/op          8 allocs/op
+PASS
+ok      github.com/wazazaby/vimebu/v2   7.445s
+```
+
 ### Under the hood
 Builders can be acquired and released using a BuilderPool, which is a wrapper around a `sync.Pool` instance.
 A default BuilderPool instance is created and exposed by the package, it is accessible like this :
