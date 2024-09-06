@@ -4,7 +4,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/wazazaby/vimebu)](https://goreportcard.com/report/github.com/wazazaby/vimebu)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wazazaby/vimebu/blob/master/LICENSE)
 
-vimebu is a small library that provides a builder to create VictoriaMetrics compatible metrics.
+vimebu provides a type-safe builder to create VictoriaMetrics compatible metrics. 
+
+It aims to be as CPU & memory efficient as possible using strategies such as object pooling, buffer reuse etc.
 
 ## Installation
 `go get -u github.com/wazazaby/vimebu/v2`
@@ -40,15 +42,17 @@ import (
     "github.com/wazazaby/vimebu/v2"
 )
 
-func getCassandraQueryCounter(name string, host net.IP) *metrics.Counter {
-    builder := vimebu.Metric("cassandra_query_total")
-    builder.LabelString("name", name)
-    builder.LabelStringer("host", host)
-    return builder.GetOrCreateCounter() // cassandra_query_total{name="beep",host="1.2.3.4"}
+func getCassandraQueryCounter(name string, host net.IP, err error) *metrics.Counter {
+    return vimebu.Metric("cassandra_query_total").
+        LabelString("name", name).
+        LabelStringer("host", host).
+        LabelErrorQuote("error", err). // The label "error" won't be added if err is nil.
+        GetOrCreateCounter() // cassandra_query_total{name="beep",host="1.2.3.4",error="i/o timeout"}
 }
 ```
 
 ### Create metrics with conditional labels
+You can also have metrics with labels that are added under certain conditions.
 ```go
 import (
     "github.com/VictoriaMetrics/metrics"
@@ -77,13 +81,13 @@ import (
 )
 
 func getHTTPRequestCounter(path string) *metrics.Counter {
-    builder := vimebu.Metric("api_http_requests_total")
-    builder.LabelQuote("path", path)
-    return builder.GetOrCreateCounter() // api_http_requests_total{path="some/bro\"ken/path"}
+    return vimebu.Metric("api_http_requests_total").
+      LabelQuote("path", path).
+      GetOrCreateCounter() // api_http_requests_total{path="some/bro\"ken/path"}
 }
 ```
 
-### Create metrics with label values that aren't string
+### Create metrics with label values that aren't strings
 You can use these methods to append specific value types to the builder :
 * `Builder.LabelBool` for booleans
 * `Builder.LabelInt` and variations for signed integers
