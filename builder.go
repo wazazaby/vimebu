@@ -36,6 +36,9 @@ type Builder struct {
 	flAcquired bool
 }
 
+// BuilderOption
+type BuilderOption func(*Builder)
+
 // Reset zeroes out a [Builder] instance for reuse.
 func (b *Builder) Reset() {
 	b.buf = b.buf[:0]
@@ -46,23 +49,28 @@ func (b *Builder) Reset() {
 
 // Metric acquires and return a zeroed-out [Builder] instance from the
 // [DefaultBuilderPool] and sets the metric's name.
-func Metric(name string) *Builder {
+func Metric(name string, options ...BuilderOption) *Builder {
 	b := DefaultBuilderPool.Acquire()
 	b.flAcquired = true
-	return b.Metric(name)
+	return b.Metric(name, options...)
 }
 
 // Metric sets the metric's name of the [Builder].
 //
 // Panics if [Builder.Metric] was called previously on the same Builder instance
 // without it being reset, or if the provided name is empty.
-func (b *Builder) Metric(name string) *Builder {
+func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 	if len(name) == 0 {
 		panic("vimebu: Builder.Metric has been passed an empty metric name")
 	}
 	if b.flName {
 		panic("vimebu: Builder.Metric has already been called on this instance")
 	}
+
+	for _, applyOption := range options {
+		applyOption(b)
+	}
+
 	b.buf = append(b.buf, name...)
 	b.flName = true
 	return b
