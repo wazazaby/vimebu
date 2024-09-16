@@ -30,7 +30,7 @@ type BuilderOption func(*Builder)
 // Zero means no length limit.
 //
 // If the max len is exceeded for a label name, a log line containing the
-// reason will be output to [os.Stderr], and the label will be skipped.
+// reason will be written to [os.Stderr], and the label will be skipped.
 func WithLabelNameMaxLen(maxLen int) BuilderOption {
 	return func(b *Builder) {
 		b.labelNameMaxLen = maxLen
@@ -51,7 +51,7 @@ func WithLabelNameMaxLen(maxLen int) BuilderOption {
 // Zero means no length limit.
 //
 // If the max len is exceeded for a label value, a log line containing the
-// reason will be output to [os.Stderr], and the label will be skipped.
+// reason will be written to [os.Stderr], and the label will be skipped.
 func WithLabelValueMaxLen(maxLen int) BuilderOption {
 	return func(b *Builder) {
 		b.labelValueMaxLen = maxLen
