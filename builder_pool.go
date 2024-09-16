@@ -8,7 +8,7 @@ const (
 )
 
 var (
-	DefaultBuilderPool = NewBuilderPool()
+	defaultBuilderPool = NewBuilderPool()
 )
 
 // NewBuilderPool creates a new [BuilderPool] instance.
@@ -38,12 +38,12 @@ func (p *BuilderPool) Acquire() *Builder {
 	return p.pool.Get().(*Builder)
 }
 
-// AcquireBuilder returns an empty [Builder] instance from the [DefaultBuilderPool].
+// AcquireBuilder returns an empty [Builder] instance from the default builder pool.
 //
 // Release the [Builder] with [ReleaseBuilder] after the [Builder] is no longer needed.
 // This allows reducing GC load.
 func AcquireBuilder() *Builder {
-	return DefaultBuilderPool.Acquire()
+	return defaultBuilderPool.Acquire()
 }
 
 // Release releases the [Builder] acquired via [BuilderPool.Acquire] to the specified pool.
@@ -55,12 +55,12 @@ func (p *BuilderPool) Release(b *Builder) {
 	p.pool.Put(b)
 }
 
-// Release releases the [Builder] acquired via [AcquireBuilder] to the [DefaultBuilderPool].
+// Release releases the [Builder] acquired via [AcquireBuilder] to the default builder pool.
 //
 // The released [Builder] mustn't be used after releasing it, otherwise data races
 // may occur.
 func ReleaseBuilder(b *Builder) {
-	DefaultBuilderPool.Release(b)
+	defaultBuilderPool.Release(b)
 }
 
 // Metric acquires and returns a zeroed-out [Builder] instance from the
