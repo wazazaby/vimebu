@@ -21,6 +21,24 @@ const (
 	errorLabelName string = "error"
 )
 
+// BuilderOption
+type BuilderOption func(*Builder)
+
+// WithLabelNameMaxLen
+func WithLabelNameMaxLen(maxLen int) BuilderOption {
+	return func(b *Builder) {
+		b.labelNameMaxLen = maxLen
+	}
+}
+
+// WithLabelValueMaxLen
+// Only applies to string stuff.
+func WithLabelValueMaxLen(maxLen int) BuilderOption {
+	return func(b *Builder) {
+		b.labelValueMaxLen = maxLen
+	}
+}
+
 // Builder is used to efficiently build a VictoriaMetrics metric.
 //
 // It is forbidden copying [Builder] instances.
@@ -36,10 +54,10 @@ type Builder struct {
 
 	flName  bool
 	flLabel bool
-}
 
-// BuilderOption
-type BuilderOption func(*Builder)
+	labelNameMaxLen  int
+	labelValueMaxLen int
+}
 
 // Reset zeroes out a [Builder] instance for reuse.
 func (b *Builder) Reset() {
@@ -47,6 +65,8 @@ func (b *Builder) Reset() {
 	b.buf = b.buf[:0]
 	b.flName = false
 	b.flLabel = false
+	b.labelNameMaxLen = 0
+	b.labelValueMaxLen = 0
 }
 
 // Metric acquires and returns a zeroed-out [Builder] instance from the
@@ -99,12 +119,16 @@ func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
 	if !b.flName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
-	if len(name) == 0 {
-		log.Printf("vimebu: metric %q, received empty label name - skipping", b.buf)
+	if !b.isValidLabelName(name) {
 		return b
 	}
-	if len(value) == 0 {
+	lv := len(value)
+	if lv == 0 {
 		log.Printf("vimebu: metric %q, label name: %q, received empty label value - skipping", b.buf, name)
+		return b
+	}
+	if b.labelValueMaxLen > 0 && lv > b.labelValueMaxLen {
+		log.Printf("vimebu: metric %q, label name %q, value %q exceeds set limit %d - skipping", b.buf, name, value, b.labelNameMaxLen)
 		return b
 	}
 	b.buf = b.appendCommaOrLeftBracket()
@@ -227,7 +251,7 @@ func (b *Builder) LabelUint64(name string, value uint64) *Builder {
 	if !b.flName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
-	if len(name) == 0 {
+	if !b.isValidLabelName(name) {
 		return b
 	}
 	b.buf = b.appendCommaOrLeftBracket()
@@ -284,8 +308,7 @@ func (b *Builder) LabelInt64(name string, value int64) *Builder {
 	if !b.flName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
-	if len(name) == 0 {
-		log.Printf("vimebu: metric %q, received empty label name - skipping", b.buf)
+	if !b.isValidLabelName(name) {
 		return b
 	}
 	b.buf = b.appendCommaOrLeftBracket()
@@ -315,8 +338,7 @@ func (b *Builder) LabelFloat64(name string, value float64) *Builder {
 	if !b.flName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
-	if len(name) == 0 {
-		log.Printf("vimebu: metric %q, received empty label name - skipping", b.buf)
+	if !b.isValidLabelName(name) {
 		return b
 	}
 	b.buf = b.appendCommaOrLeftBracket()
@@ -365,6 +387,19 @@ func (b *Builder) String() string {
 		b.buf = append(b.buf, rightBracketByte)
 	}
 	return string(b.buf)
+}
+
+func (b *Builder) isValidLabelName(name string) bool {
+	ln := len(name)
+	if ln == 0 {
+		log.Printf("vimebu: metric %q, empty label name - skipping", b.buf)
+		return false
+	}
+	if b.labelNameMaxLen > 0 && ln > b.labelNameMaxLen {
+		log.Printf("vimebu: metric %q, label name %q len exceeds set limit of %d - skipping", b.buf, name, b.labelNameMaxLen)
+		return false
+	}
+	return true
 }
 
 func (b *Builder) appendCommaOrLeftBracket() []byte {
