@@ -21,8 +21,8 @@ const (
 	errorLabelName string = "error"
 )
 
-// BuilderOption represents a modifier function that will apply specific
-// configurations to a [Builder] instance.
+// BuilderOption represents a modifier function that will apply a specific
+// configuration to a [Builder] instance.
 type BuilderOption func(*Builder)
 
 // WithLabelNameMaxLen sets the max authorized length for a label name.
