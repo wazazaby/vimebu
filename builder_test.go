@@ -1,7 +1,11 @@
 package vimebu
 
 import (
+	"bytes"
 	"fmt"
+	"log"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -308,6 +312,50 @@ func TestBuilderParallel(t *testing.T) {
 	require.NoError(t, eg.Wait())
 }
 
+func captureLogOutput(f func()) []string {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	f()
+	log.SetOutput(os.Stderr)
+	return strings.FieldsFunc(buf.String(), func(c rune) bool {
+		return c == '\n' || c == '\r'
+	})
+}
+
+func TestBuilderOptionsWithLabelNameMaxLen(t *testing.T) {
+	logLines := captureLogOutput(func() {
+		metric := Metric("test_options", WithLabelNameMaxLen(3)).
+			LabelString("one", "one").
+			LabelString("two", "two").
+			LabelString("three", "three").                         // Will be skipped.
+			LabelStringQuote("four", `fo"ur`).                     // Will be skipped.
+			LabelError(fmt.Errorf("something went wrong")).        // Will be skipped.
+			LabelErrorQuote(fmt.Errorf(`"something" went wrong`)). // Will be skipped.
+			LabelNamedError("err", fmt.Errorf("mayday")).
+			String()
+		require.Equal(t, `test_options{one="one",two="two",err="mayday"}`, metric)
+	})
+
+	require.Len(t, logLines, 4) // One log line for each label name exceeding the limit of 3 bytes, thus getting skipped.
+}
+
+func TestBuilderOptionsWithLabelValueMaxLen(t *testing.T) {
+	logLines := captureLogOutput(func() {
+		metric := Metric("test_options", WithLabelValueMaxLen(5)).
+			LabelString("one", "one").
+			LabelString("two", "two").
+			LabelString("three", "three").
+			LabelStringQuote("four", `fo"ur`).
+			LabelError(fmt.Errorf("something went wrong")).        // Will be skipped.
+			LabelErrorQuote(fmt.Errorf(`"something" went wrong`)). // Will be skipped.
+			LabelNamedError("err", fmt.Errorf("mayday")).          // Will be skipped.
+			String()
+		require.Equal(t, `test_options{one="one",two="two",three="three",four="fo\"ur"}`, metric)
+	})
+
+	require.Len(t, logLines, 3) // One log line for each label value exceeding the limit of 5 bytes, thus getting skipped.
+}
+
 func BenchmarkBuilderTestCasesParallel(b *testing.B) {
 	b.ReportAllocs()
 
@@ -341,7 +389,7 @@ func BenchmarkBuilderTestCasesSequential(b *testing.B) {
 }
 
 func doBenchmarkCase(in input) {
-	builder := Metric(in.name)
+	builder := Metric(in.name, WithLabelNameMaxLen(100), WithLabelValueMaxLen(100))
 	for _, label := range in.labels {
 		addLabelAnyToBuilder(builder, label)
 	}

@@ -45,6 +45,8 @@ func WithLabelNameMaxLen(maxLen int) BuilderOption {
 //   - [Builder.LabelStringQuote]
 //   - [Builder.LabelError]
 //   - [Builder.LabelErrorQuote]
+//   - [Builder.LabelNamedError]
+//   - [Builder.LabelNamedErrorQuote]
 //
 // Zero means no length limit.
 //
@@ -139,7 +141,7 @@ func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
 	if !b.isValidLabelName(name) {
 		return b
 	}
-	if !b.isValidLabelValue(value) {
+	if !b.isValidLabelValue(name, value) {
 		return b
 	}
 	b.buf = b.appendCommaOrLeftBracket()
@@ -429,14 +431,14 @@ func (b *Builder) isValidLabelName(name string) bool {
 // label value len must also be less than the provided max len value.
 //
 // In case of an invalid label value, a log line containing the reasons will be output to [os.Stderr].
-func (b *Builder) isValidLabelValue(value string) bool {
+func (b *Builder) isValidLabelValue(name, value string) bool {
 	lv := len(value)
 	if lv == 0 {
-		log.Printf("vimebu: metric %q, label name: %q, received empty label value - skipping", b.buf, value)
+		log.Printf("vimebu: metric %q, label name: %q, received empty label value - skipping", b.buf, name)
 		return false
 	}
 	if b.labelValueMaxLen > 0 && lv > b.labelValueMaxLen {
-		log.Printf("vimebu: metric %q, label name %q, label value %q len exceeds set limit of %d - skipping", b.buf, value, value, b.labelNameMaxLen)
+		log.Printf("vimebu: metric %q, label name %q, label value %q len exceeds set limit of %d - skipping", b.buf, name, value, b.labelNameMaxLen)
 		return false
 	}
 	return true
