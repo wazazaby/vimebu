@@ -38,7 +38,7 @@ func (p *BuilderPool) Acquire() *Builder {
 	return p.pool.Get().(*Builder)
 }
 
-// AcquireBuilder returns an empty [Builder] instance from the default pool.
+// AcquireBuilder returns an empty [Builder] instance from the [DefaultBuilderPool].
 //
 // Release the [Builder] with [ReleaseBuilder] after the [Builder] is no longer needed.
 // This allows reducing GC load.
@@ -55,7 +55,7 @@ func (p *BuilderPool) Release(b *Builder) {
 	p.pool.Put(b)
 }
 
-// Release releases the [Builder] acquired via [AcquireBuilder] to the default pool.
+// Release releases the [Builder] acquired via [AcquireBuilder] to the [DefaultBuilderPool].
 //
 // The released [Builder] mustn't be used after releasing it, otherwise data races
 // may occur.
