@@ -64,6 +64,13 @@ func WithLabelValueMaxLen(maxLen int) BuilderOption {
 // [Builder] instances MUST not be used from concurrently running goroutines.
 //
 // The zero value is ready to use.
+//
+// When validating label names and values, [Builder] instances will write log lines
+// to [os.Stderr] using the [log.Printf] function (standard logger).
+//
+// If you wish to redirect these log lines to your own logger, you can do this :
+//   - Logrus : [log.SetOutput]([logrus.Logger.Writer])
+//   - Zap : [zap.RedirectStdLog]([zap.Logger])
 type Builder struct {
 	_ noCopy
 
@@ -409,7 +416,7 @@ func (b *Builder) String() string {
 // If the [Builder] was passed the [WithLabelNameMaxLen] option, the
 // label name len must also be less than the provided max len value.
 //
-// In case of an invalid label name, a log line containing the reasons will be output to [os.Stderr].
+// In case of an invalid label name, a log line containing the reasons will be written to [os.Stderr].
 func (b *Builder) isValidLabelName(name string) bool {
 	ln := len(name)
 	if ln == 0 {
@@ -430,7 +437,7 @@ func (b *Builder) isValidLabelName(name string) bool {
 // If the [Builder] was passed the [WithLabelValueMaxLen] option, the
 // label value len must also be less than the provided max len value.
 //
-// In case of an invalid label value, a log line containing the reasons will be output to [os.Stderr].
+// In case of an invalid label value, a log line containing the reasons will be written to [os.Stderr].
 func (b *Builder) isValidLabelValue(name, value string) bool {
 	lv := len(value)
 	if lv == 0 {
