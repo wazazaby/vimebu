@@ -2,6 +2,7 @@ package vimebu
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 )
 
@@ -81,19 +82,7 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
 func (b *Builder) LabelString(name, value string) *Builder {
-	if !b.flName {
-		panic("vimebu: can't add a label to a Builder with no metric name")
-	}
-	if len(name) == 0 || len(value) == 0 {
-		return b
-	}
-	b.buf = b.appendCommaOrLeftBracket()
-	b.buf = append(b.buf, name...)
-	b.buf = append(b.buf, equalByte)
-	b.buf = append(b.buf, doubleQuotesByte)
-	b.buf = append(b.buf, value...)
-	b.buf = append(b.buf, doubleQuotesByte)
-	return b
+	return b.labelString(name, value, false)
 }
 
 // LabelStringQuote adds a label with a value of type string to the [Builder].
@@ -103,16 +92,31 @@ func (b *Builder) LabelString(name, value string) *Builder {
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
 func (b *Builder) LabelStringQuote(name, value string) *Builder {
+	return b.labelString(name, value, true)
+}
+
+func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
 	if !b.flName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
-	if len(name) == 0 || len(value) == 0 {
+	if len(name) == 0 {
+		log.Printf("vimebu: metric %q, received empty label name - skipping", b.buf)
+		return b
+	}
+	if len(value) == 0 {
+		log.Printf("vimebu: metric %q, label name: %q, received empty label value - skipping", b.buf, name)
 		return b
 	}
 	b.buf = b.appendCommaOrLeftBracket()
 	b.buf = append(b.buf, name...)
 	b.buf = append(b.buf, equalByte)
-	b.buf = strconv.AppendQuote(b.buf, value)
+	if escapeQuotes {
+		b.buf = strconv.AppendQuote(b.buf, value)
+	} else { // Fast path for when explicit quote escaping is not required.
+		b.buf = append(b.buf, doubleQuotesByte)
+		b.buf = append(b.buf, value...)
+		b.buf = append(b.buf, doubleQuotesByte)
+	}
 	return b
 }
 
@@ -281,6 +285,7 @@ func (b *Builder) LabelInt64(name string, value int64) *Builder {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if len(name) == 0 {
+		log.Printf("vimebu: metric %q, received empty label name - skipping", b.buf)
 		return b
 	}
 	b.buf = b.appendCommaOrLeftBracket()
@@ -311,6 +316,7 @@ func (b *Builder) LabelFloat64(name string, value float64) *Builder {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if len(name) == 0 {
+		log.Printf("vimebu: metric %q, received empty label name - skipping", b.buf)
 		return b
 	}
 	b.buf = b.appendCommaOrLeftBracket()
