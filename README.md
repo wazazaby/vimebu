@@ -129,8 +129,8 @@ import (
 )
 
 func getHTTPRequestCounter(path string) *metrics.Counter {
-    builder := vimebu.DefaultBuilderPool.Acquire()
-    defer vimebu.DefaultBuilderPool.Release(builder)
+    builder := vimebu.AcquireBuilder()
+    defer vimebu.ReleaseBuilder(builder)
 
     builder.LabelQuote("path", path)
     return builder.GetOrCreateCounter() // api_http_requests_total{path="some/bro\"ken/path"}
