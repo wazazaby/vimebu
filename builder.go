@@ -29,11 +29,12 @@ const (
 type Builder struct {
 	_ noCopy
 
+	pool *BuilderPool
+
 	buf []byte
 
-	flName     bool
-	flLabel    bool
-	flAcquired bool
+	flName  bool
+	flLabel bool
 }
 
 // BuilderOption
@@ -41,18 +42,16 @@ type BuilderOption func(*Builder)
 
 // Reset zeroes out a [Builder] instance for reuse.
 func (b *Builder) Reset() {
+	b.pool = nil
 	b.buf = b.buf[:0]
 	b.flName = false
 	b.flLabel = false
-	b.flAcquired = false
 }
 
-// Metric acquires and return a zeroed-out [Builder] instance from the
+// Metric acquires and returns a zeroed-out [Builder] instance from the
 // [DefaultBuilderPool] and sets the metric's name.
 func Metric(name string, options ...BuilderOption) *Builder {
-	b := DefaultBuilderPool.Acquire()
-	b.flAcquired = true
-	return b.Metric(name, options...)
+	return DefaultBuilderPool.Metric(name, options...)
 }
 
 // Metric sets the metric's name of the [Builder].
@@ -350,8 +349,8 @@ func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
 
 // String builds the complete metric by returning the accumulated string.
 func (b *Builder) String() string {
-	if b.flAcquired {
-		defer DefaultBuilderPool.Release(b)
+	if b.pool != nil {
+		defer b.pool.Release(b)
 	}
 	if !b.flName {
 		return ""
