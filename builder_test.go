@@ -356,6 +356,25 @@ func TestBuilderOptionsWithLabelValueMaxLen(t *testing.T) {
 	require.Len(t, logLines, 3) // One log line for each label value exceeding the limit of 5 bytes, thus getting skipped.
 }
 
+func TestBuilderReset(t *testing.T) {
+	options := []BuilderOption{WithLabelNameMaxLen(64), WithLabelValueMaxLen(256)}
+	builder := Metric("test_reset", options...).LabelString("test", "something")
+
+	require.NotNil(t, builder.pool)
+	require.True(t, builder.hasMetricName)
+	require.True(t, builder.hasLabel)
+	require.Equal(t, 64, builder.labelNameMaxLen)
+	require.Equal(t, 256, builder.labelValueMaxLen)
+
+	builder.Reset()
+
+	require.Nil(t, builder.pool)
+	require.False(t, builder.hasMetricName)
+	require.False(t, builder.hasLabel)
+	require.Equal(t, 0, builder.labelNameMaxLen)
+	require.Equal(t, 0, builder.labelValueMaxLen)
+}
+
 func BenchmarkBuilderTestCasesParallel(b *testing.B) {
 	b.ReportAllocs()
 
