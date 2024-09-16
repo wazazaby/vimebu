@@ -52,8 +52,8 @@ type Builder struct {
 
 	buf []byte
 
-	flName  bool
-	flLabel bool
+	hasMetricName bool
+	hasLabel      bool
 
 	labelNameMaxLen  int
 	labelValueMaxLen int
@@ -63,8 +63,8 @@ type Builder struct {
 func (b *Builder) Reset() {
 	b.pool = nil
 	b.buf = b.buf[:0]
-	b.flName = false
-	b.flLabel = false
+	b.hasMetricName = false
+	b.hasLabel = false
 	b.labelNameMaxLen = 0
 	b.labelValueMaxLen = 0
 }
@@ -83,7 +83,7 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 	if len(name) == 0 {
 		panic("vimebu: Builder.Metric has been passed an empty metric name")
 	}
-	if b.flName {
+	if b.hasMetricName {
 		panic("vimebu: Builder.Metric has already been called on this instance")
 	}
 
@@ -92,7 +92,7 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 	}
 
 	b.buf = append(b.buf, name...)
-	b.flName = true
+	b.hasMetricName = true
 	return b
 }
 
@@ -116,7 +116,7 @@ func (b *Builder) LabelStringQuote(name, value string) *Builder {
 }
 
 func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
-	if !b.flName {
+	if !b.hasMetricName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if !b.isValidLabelName(name) {
@@ -248,7 +248,7 @@ func (b *Builder) LabelUint32(name string, value uint32) *Builder {
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
 func (b *Builder) LabelUint64(name string, value uint64) *Builder {
-	if !b.flName {
+	if !b.hasMetricName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if !b.isValidLabelName(name) {
@@ -305,7 +305,7 @@ func (b *Builder) LabelInt32(name string, value int32) *Builder {
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
 func (b *Builder) LabelInt64(name string, value int64) *Builder {
-	if !b.flName {
+	if !b.hasMetricName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if !b.isValidLabelName(name) {
@@ -335,7 +335,7 @@ func (b *Builder) LabelFloat32(name string, value float32) *Builder {
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
 func (b *Builder) LabelFloat64(name string, value float64) *Builder {
-	if !b.flName {
+	if !b.hasMetricName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if !b.isValidLabelName(name) {
@@ -380,10 +380,10 @@ func (b *Builder) String() string {
 	if b.pool != nil {
 		defer b.pool.Release(b)
 	}
-	if !b.flName {
+	if !b.hasMetricName {
 		return ""
 	}
-	if b.flLabel {
+	if b.hasLabel {
 		b.buf = append(b.buf, rightBracketByte)
 	}
 	return string(b.buf)
@@ -403,9 +403,9 @@ func (b *Builder) isValidLabelName(name string) bool {
 }
 
 func (b *Builder) appendCommaOrLeftBracket() []byte {
-	if b.flLabel {
+	if b.hasLabel {
 		return append(b.buf, commaByte)
 	}
-	b.flLabel = true
+	b.hasLabel = true
 	return append(b.buf, leftBracketByte)
 }
