@@ -96,9 +96,9 @@ func (b *Builder) Reset() {
 }
 
 // Metric acquires and returns a zeroed-out [Builder] instance from the
-// [DefaultBuilderPool] and sets the metric's name.
+// default builder pool and sets the metric's name.
 func Metric(name string, options ...BuilderOption) *Builder {
-	return DefaultBuilderPool.Metric(name, options...)
+	return defaultBuilderPool.Metric(name, options...)
 }
 
 // Metric sets the metric's name of the [Builder].
