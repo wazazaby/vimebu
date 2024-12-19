@@ -376,13 +376,12 @@ func TestBuilderReset(t *testing.T) {
 }
 
 func BenchmarkBuilderTestCasesParallel(b *testing.B) {
-	b.ReportAllocs()
-
 	for _, tc := range testCases {
 		if tc.skipBench {
 			continue
 		}
 		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
 			b.RunParallel(func(p *testing.PB) {
 				for p.Next() {
 					doBenchmarkCase(tc.input)
@@ -393,13 +392,12 @@ func BenchmarkBuilderTestCasesParallel(b *testing.B) {
 }
 
 func BenchmarkBuilderTestCasesSequential(b *testing.B) {
-	b.ReportAllocs()
-
 	for _, tc := range testCases {
 		if tc.skipBench {
 			continue
 		}
 		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
 			for range b.N {
 				doBenchmarkCase(tc.input)
 			}
