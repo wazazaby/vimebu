@@ -3,7 +3,7 @@ module github.com/wazazaby/vimebu/v2
 go 1.22
 
 require (
-	github.com/VictoriaMetrics/metrics v1.35.1
+	github.com/VictoriaMetrics/metrics v1.35.2
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/sync v0.11.0
 )
