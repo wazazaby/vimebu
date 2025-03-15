@@ -1,7 +1,8 @@
 module github.com/wazazaby/vimebu/v2
 
-go 1.22
-toolchain go1.23.7
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
 	github.com/VictoriaMetrics/metrics v1.35.2
