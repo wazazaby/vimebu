@@ -42,11 +42,11 @@ func WithLabelNameMaxLen(maxLen int) BuilderOption {
 // Only applies to label values added using the following methods :
 //
 //   - [Builder.LabelString]
-//   - [Builder.LabelStringQuote]
+//   - [Builder.LabelTrustedString]
 //   - [Builder.LabelError]
-//   - [Builder.LabelErrorQuote]
+//   - [Builder.LabelTrustedError]
 //   - [Builder.LabelNamedError]
-//   - [Builder.LabelNamedErrorQuote]
+//   - [Builder.LabelNamedTrustedError]
 //
 // Zero means no length limit.
 //
@@ -123,22 +123,25 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 }
 
 // LabelString adds a label with a value of type string to the [Builder].
-//
-// NoOp if the label name or value are empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelString(name, value string) *Builder {
-	return b.labelString(name, value, false)
-}
-
-// LabelStringQuote adds a label with a value of type string to the [Builder].
 // Quotes inside label value will be escaped using [strconv.AppendQuote].
 //
 // NoOp if the label name or value are empty.
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelStringQuote(name, value string) *Builder {
+func (b *Builder) LabelString(name, value string) *Builder {
 	return b.labelString(name, value, true)
+}
+
+// LabelTrustedString adds a label with a value of type string to the [Builder].
+//
+// Using this method over the standard one is more efficient as it avoid unecessary compute & allocations,
+// the drawback being that your label needs to be safe / escaped already (otherwise, VM will panic).
+//
+// NoOp if the label name or value are empty.
+//
+// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+func (b *Builder) LabelTrustedString(name, value string) *Builder {
+	return b.labelString(name, value, false)
 }
 
 func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
@@ -165,6 +168,7 @@ func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
 }
 
 // LabelError adds a label with a value implementing the error interface to the [Builder].
+// Quotes inside label value will be escaped using [strconv.AppendQuote].
 //
 // NoOp if the label name is empty, or if err is nil.
 //
@@ -177,6 +181,7 @@ func (b *Builder) LabelError(err error) *Builder {
 }
 
 // LabelNamedError adds a label with a value implementing the error interface to the [Builder].
+// Quotes inside label value will be escaped using [strconv.AppendQuote].
 //
 // NoOp if the label name is empty, or if err is nil.
 //
@@ -188,30 +193,34 @@ func (b *Builder) LabelNamedError(name string, err error) *Builder {
 	return b.LabelString(name, err.Error())
 }
 
-// LabelErrorQuote adds a label with a value implementing the error interface to the [Builder].
-// Quotes inside label value will be escaped using [strconv.AppendQuote].
+// LabelTrustedError adds a label with a value implementing the error interface to the [Builder].
+//
+// Using this method over the standard one is more efficient as it avoid unecessary compute & allocations,
+// the drawback being that your label needs to be safe / escaped already (otherwise, VM will panic).
 //
 // NoOp if the label name is empty, or if err is nil.
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelErrorQuote(err error) *Builder {
+func (b *Builder) LabelTrustedError(err error) *Builder {
 	if err == nil {
 		return b
 	}
-	return b.LabelStringQuote(errorLabelName, err.Error())
+	return b.LabelTrustedString(errorLabelName, err.Error())
 }
 
-// LabelNamedErrorQuote adds a label with a value implementing the error interface to the [Builder].
-// Quotes inside label value will be escaped using [strconv.AppendQuote].
+// LabelNamedTrustedError adds a label with a value implementing the error interface to the [Builder].
+//
+// Using this method over the standard one is more efficient as it avoid unecessary compute & allocations,
+// the drawback being that your label needs to be safe / escaped already (otherwise, VM will panic).
 //
 // NoOp if the label name is empty, or if err is nil.
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelNamedErrorQuote(name string, err error) *Builder {
+func (b *Builder) LabelNamedTrustedError(name string, err error) *Builder {
 	if err == nil {
 		return b
 	}
-	return b.LabelStringQuote(name, err.Error())
+	return b.LabelTrustedString(name, err.Error())
 }
 
 // LabelBool adds a label with a value of type bool to the [Builder].
@@ -371,6 +380,7 @@ func (b *Builder) LabelFloat64(name string, value float64) *Builder {
 }
 
 // LabelStringer adds a label with a value implementing the [fmt.Stringer] interface to the [Builder].
+// Quotes inside label value will be escaped using [strconv.AppendQuote].
 //
 // NoOp if the label name is empty, if value is nil, or if the value.String() method call returns an empty string.
 //
@@ -382,17 +392,19 @@ func (b *Builder) LabelStringer(name string, value fmt.Stringer) *Builder {
 	return b.LabelString(name, value.String())
 }
 
-// LabelStringerQuote adds a label with a value implementing the [fmt.Stringer] interface to the [Builder].
-// Quotes inside label value will be escaped using [strconv.AppendQuote].
+// LabelTrustedStringer adds a label with a value implementing the [fmt.Stringer] interface to the [Builder].
+//
+// Using this method over the standard one is more efficient as it avoid unecessary compute & allocations,
+// the drawback being that your label needs to be safe / escaped already (otherwise, VM will panic).
 //
 // NoOp if the label name is empty, if value is nil, or if the value.String() method call returns an empty string.
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
+func (b *Builder) LabelTrustedStringer(name string, value fmt.Stringer) *Builder {
 	if value == nil {
 		return b
 	}
-	return b.LabelStringQuote(name, value.String())
+	return b.LabelTrustedString(name, value.String())
 }
 
 // String builds the complete metric by returning the accumulated string.
