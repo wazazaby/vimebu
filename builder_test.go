@@ -198,9 +198,9 @@ func addLabelAnyToBuilder(builder *Builder, label label) {
 	switch v := label.value.(type) {
 	case string:
 		if label.shouldQuote {
-			builder.LabelStringQuote(label.name, v)
-		} else {
 			builder.LabelString(label.name, v)
+		} else {
+			builder.LabelTrustedString(label.name, v)
 		}
 	case bool:
 		builder.LabelBool(label.name, v)
@@ -230,15 +230,15 @@ func addLabelAnyToBuilder(builder *Builder, label label) {
 		builder.LabelFloat64(label.name, v)
 	case fmt.Stringer:
 		if label.shouldQuote {
-			builder.LabelStringerQuote(label.name, v)
-		} else {
 			builder.LabelStringer(label.name, v)
+		} else {
+			builder.LabelTrustedStringer(label.name, v)
 		}
 	case error:
 		if label.shouldQuote {
 			builder.LabelNamedError(label.name, v)
 		} else {
-			builder.LabelNamedErrorQuote(label.name, v)
+			builder.LabelNamedTrustedError(label.name, v)
 		}
 	default:
 		panic(fmt.Sprintf("unsupported type %T", v))
@@ -298,7 +298,7 @@ func TestBuilderParallel(t *testing.T) {
 		eg.Go(func() error {
 			require.NotPanics(t, func() {
 				Metric(name).
-					LabelString("host", "foobar").
+					LabelTrustedString("host", "foobar").
 					LabelBool("compressed", false).
 					LabelUint8("port", 80).
 					LabelFloat32("float", 12.3).
@@ -325,13 +325,13 @@ func captureLogOutput(f func()) []string {
 func TestBuilderOptionsWithLabelNameMaxLen(t *testing.T) {
 	logLines := captureLogOutput(func() {
 		metric := Metric("test_options", WithLabelNameMaxLen(3)).
-			LabelString("one", "one").
-			LabelString("two", "two").
-			LabelString("three", "three").                         // Will be skipped.
-			LabelStringQuote("four", `fo"ur`).                     // Will be skipped.
-			LabelError(fmt.Errorf("something went wrong")).        // Will be skipped.
-			LabelErrorQuote(fmt.Errorf(`"something" went wrong`)). // Will be skipped.
-			LabelNamedError("err", fmt.Errorf("mayday")).
+			LabelTrustedString("one", "one").
+			LabelTrustedString("two", "two").
+			LabelTrustedString("three", "three").                  // Will be skipped.
+			LabelString("four", `fo"ur`).                          // Will be skipped.
+			LabelTrustedError(fmt.Errorf("something went wrong")). // Will be skipped.
+			LabelError(fmt.Errorf(`"something" went wrong`)).      // Will be skipped.
+			LabelNamedTrustedError("err", fmt.Errorf("mayday")).
 			String()
 		require.Equal(t, `test_options{one="one",two="two",err="mayday"}`, metric)
 	})
@@ -342,13 +342,13 @@ func TestBuilderOptionsWithLabelNameMaxLen(t *testing.T) {
 func TestBuilderOptionsWithLabelValueMaxLen(t *testing.T) {
 	logLines := captureLogOutput(func() {
 		metric := Metric("test_options", WithLabelValueMaxLen(5)).
-			LabelString("one", "one").
-			LabelString("two", "two").
-			LabelString("three", "three").
-			LabelStringQuote("four", `fo"ur`).
-			LabelError(fmt.Errorf("something went wrong")).        // Will be skipped.
-			LabelErrorQuote(fmt.Errorf(`"something" went wrong`)). // Will be skipped.
-			LabelNamedError("err", fmt.Errorf("mayday")).          // Will be skipped.
+			LabelTrustedString("one", "one").
+			LabelTrustedString("two", "two").
+			LabelTrustedString("three", "three").
+			LabelString("four", `fo"ur`).
+			LabelTrustedError(fmt.Errorf("something went wrong")). // Will be skipped.
+			LabelError(fmt.Errorf(`"something" went wrong`)).      // Will be skipped.
+			LabelNamedTrustedError("err", fmt.Errorf("mayday")).   // Will be skipped.
 			String()
 		require.Equal(t, `test_options{one="one",two="two",three="three",four="fo\"ur"}`, metric)
 	})
@@ -470,14 +470,14 @@ func BenchmarkCompareSequentialVimebu(b *testing.B) {
 	)
 
 	for range b.N {
-		_ = Metric("some_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		_ = Metric("some_metric_name_one").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+		_ = Metric("some_metric_name_two").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+		_ = Metric("some_metric_name_three").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+		_ = Metric("some_metric_name_four").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_one").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_two").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_three").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_four").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
 	}
 }
 
@@ -493,14 +493,14 @@ func BenchmarkCompareParralelVimebu(b *testing.B) {
 
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			_ = Metric("some_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+			_ = Metric("some_metric_name_one").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+			_ = Metric("some_metric_name_two").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+			_ = Metric("some_metric_name_three").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+			_ = Metric("some_metric_name_four").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_one").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_two").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_three").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
+			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_four").LabelTrustedString("host", host).LabelInt("version", version).LabelError(err).LabelBool("test", test).String()
 		}
 	})
 }
