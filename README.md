@@ -35,6 +35,8 @@ var updateTotalCounterV3 = vimebu.
 
 ### Create metrics with variable label values
 vimebu is even more useful when you want to build metrics with variable label values.
+
+By default, all label values of type `~string` (that is also true for `fmt.Stringer` and `error`) will be quoted using `strconv.AppendQuote` when appended to the builder.
 ```go
 import (
     "net"
@@ -68,11 +70,11 @@ func getHTTPRequestCounter(host string) *metrics.Counter {
 }
 ```
 
-### Create metrics with label values that need to be escaped
-vimebu also exposes a way to escape quotes on label values you don't control using the following methods :
-* `Builder.LabelStringQuote`
-* `Builder.LabelStringerQuote`
-* `Builder.LabelErrorQuote`
+### Create metrics with label values don't need to be escaped
+When you control your inputs and want to be as efficient as possible, vimebu also exposes a few methods that simply quotes your strings manually without checking if the content should be escaped :
+* `Builder.LabelTrustedString`
+* `Builder.LabelTrustedStringer`
+* `Builder.LabelTrustedErrorQuote`
 
 ```go
 import (
@@ -80,10 +82,10 @@ import (
     "github.com/wazazaby/vimebu/v3"
 )
 
-func getHTTPRequestCounter(path string) *metrics.Counter {
+func getHTTPRequestCounter(version string) *metrics.Counter {
     return vimebu.Metric("api_http_requests_total").
-      LabelQuote("path", path).
-      GetOrCreateCounter() // api_http_requests_total{path="some/bro\"ken/path"}
+      LabelTrustedString("version", version).
+      GetOrCreateCounter() // api_http_requests_total{path="v1.2.3"}
 }
 ```
 
