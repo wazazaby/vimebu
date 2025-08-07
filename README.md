@@ -1,21 +1,21 @@
 # vimebu
 [![CI](https://github.com/wazazaby/vimebu/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/wazazaby/vimebu/actions/workflows/build-and-test.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/wazazaby/vimebu.svg)](https://pkg.go.dev/github.com/wazazaby/vimebu/v2)
+[![Go Reference](https://pkg.go.dev/badge/github.com/wazazaby/vimebu.svg)](https://pkg.go.dev/github.com/wazazaby/vimebu/v3)
 [![Go Report Card](https://goreportcard.com/badge/github.com/wazazaby/vimebu)](https://goreportcard.com/report/github.com/wazazaby/vimebu)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wazazaby/vimebu/blob/master/LICENSE)
 
-vimebu provides a type-safe builder to create VictoriaMetrics compatible metrics. 
+vimebu provides a type-safe builder to create VictoriaMetrics compatible metrics.
 
 It aims to be as CPU & memory efficient as possible using strategies such as object pooling, buffer reuse etc.
 
 ## Installation
-`go get -u github.com/wazazaby/vimebu/v2`
+`go get -u github.com/wazazaby/vimebu/v3`
 
 ## Usage
 ```go
 import (
     "github.com/VictoriaMetrics/metrics"
-    "github.com/wazazaby/vimebu/v2"
+    "github.com/wazazaby/vimebu/v3"
 )
 
 // Only using the builder.
@@ -35,11 +35,13 @@ var updateTotalCounterV3 = vimebu.
 
 ### Create metrics with variable label values
 vimebu is even more useful when you want to build metrics with variable label values.
+
+By default, all label values of type `~string` (that is also true for `fmt.Stringer` and `error`) will be quoted using `strconv.AppendQuote` when appended to the builder.
 ```go
 import (
     "net"
 
-    "github.com/wazazaby/vimebu/v2"
+    "github.com/wazazaby/vimebu/v3"
 )
 
 func getCassandraQueryCounter(name string, host net.IP, err error) *metrics.Counter {
@@ -56,7 +58,7 @@ You can also have metrics with labels that are added under certain conditions.
 ```go
 import (
     "github.com/VictoriaMetrics/metrics"
-    "github.com/wazazaby/vimebu/v2"
+    "github.com/wazazaby/vimebu/v3"
 )
 
 func getHTTPRequestCounter(host string) *metrics.Counter {
@@ -68,22 +70,22 @@ func getHTTPRequestCounter(host string) *metrics.Counter {
 }
 ```
 
-### Create metrics with label values that need to be escaped
-vimebu also exposes a way to escape quotes on label values you don't control using the following methods :
-* `Builder.LabelStringQuote`
-* `Builder.LabelStringerQuote`
-* `Builder.LabelErrorQuote`
+### Create metrics with label values don't need to be escaped
+When you control your inputs and want to be as efficient as possible, vimebu also exposes a few methods that simply quotes your strings manually without checking if the content should be escaped :
+* `Builder.LabelTrustedString`
+* `Builder.LabelTrustedStringer`
+* `Builder.LabelTrustedErrorQuote`
 
 ```go
 import (
     "github.com/VictoriaMetrics/metrics"
-    "github.com/wazazaby/vimebu/v2"
+    "github.com/wazazaby/vimebu/v3"
 )
 
-func getHTTPRequestCounter(path string) *metrics.Counter {
+func getHTTPRequestCounter(version string) *metrics.Counter {
     return vimebu.Metric("api_http_requests_total").
-      LabelQuote("path", path).
-      GetOrCreateCounter() // api_http_requests_total{path="some/bro\"ken/path"}
+      LabelTrustedString("version", version).
+      GetOrCreateCounter() // api_http_requests_total{path="v1.2.3"}
 }
 ```
 
@@ -108,14 +110,14 @@ In each case, it allocates half as much per operation. Yay!
 ❯ go test -bench="BenchmarkCompare" -benchmem -run=NONE
 goos: darwin
 goarch: arm64
-pkg: github.com/wazazaby/vimebu/v2
+pkg: github.com/wazazaby/vimebu/v3
 cpu: Apple M1 Max
 BenchmarkCompareSequentialFmt-10          717055              1660 ns/op            1024 B/op         16 allocs/op
 BenchmarkCompareParralelFmt-10           2279166               528.0 ns/op          1024 B/op         16 allocs/op
 BenchmarkCompareSequentialVimebu-10      1557618               765.0 ns/op           896 B/op          8 allocs/op
 BenchmarkCompareParralelVimebu-10        3098870               398.5 ns/op           896 B/op          8 allocs/op
 PASS
-ok      github.com/wazazaby/vimebu/v2   7.445s
+ok      github.com/wazazaby/vimebu/v3   7.445s
 ```
 
 ### Under the hood
@@ -125,7 +127,7 @@ A default BuilderPool instance is created and exposed by the package, it is acce
 ```go
 import (
     "github.com/VictoriaMetrics/metrics"
-    "github.com/wazazaby/vimebu/v2"
+    "github.com/wazazaby/vimebu/v3"
 )
 
 func getHTTPRequestCounter(path string) *metrics.Counter {
