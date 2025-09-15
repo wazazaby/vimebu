@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.1
 
 require (
-	github.com/VictoriaMetrics/metrics v1.39.1
+	github.com/VictoriaMetrics/metrics v1.40.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.17.0
 )
