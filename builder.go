@@ -145,22 +145,17 @@ func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
 	if !b.hasMetricName {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
-	if !b.isValidLabelName(name) {
+	if !b.isValidLabelName(name) || !b.isValidLabelValue(name, value) {
 		return b
 	}
-	if !b.isValidLabelValue(name, value) {
-		return b
-	}
-	b.buf = b.appendCommaOrLeftBracket()
-	b.buf = append(b.buf, name...)
-	b.buf = append(b.buf, equalByte)
-	if escapeQuotes {
-		b.buf = strconv.AppendQuote(b.buf, value)
-	} else { // Fast path for when explicit quote escaping is not required.
-		b.buf = append(b.buf, doubleQuotesByte)
-		b.buf = append(b.buf, value...)
-		b.buf = append(b.buf, doubleQuotesByte)
-	}
+	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
+		if !escapeQuotes { // Fast path for when explicit quote escaping is not required.
+			return append(dst, value...)
+		}
+		return strconv.AppendQuote(dst, value)
+	}, !escapeQuotes)
+
+	b.hasLabel = true
 	return b
 }
 
@@ -274,12 +269,10 @@ func (b *Builder) LabelUint64(name string, value uint64) *Builder {
 	if !b.isValidLabelName(name) {
 		return b
 	}
-	b.buf = b.appendCommaOrLeftBracket()
-	b.buf = append(b.buf, name...)
-	b.buf = append(b.buf, equalByte)
-	b.buf = append(b.buf, doubleQuotesByte)
-	b.buf = strconv.AppendUint(b.buf, value, base10)
-	b.buf = append(b.buf, doubleQuotesByte)
+	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
+		return strconv.AppendUint(dst, value, base10)
+	}, true)
+	b.hasLabel = true
 	return b
 }
 
@@ -331,12 +324,10 @@ func (b *Builder) LabelInt64(name string, value int64) *Builder {
 	if !b.isValidLabelName(name) {
 		return b
 	}
-	b.buf = b.appendCommaOrLeftBracket()
-	b.buf = append(b.buf, name...)
-	b.buf = append(b.buf, equalByte)
-	b.buf = append(b.buf, doubleQuotesByte)
-	b.buf = strconv.AppendInt(b.buf, value, base10)
-	b.buf = append(b.buf, doubleQuotesByte)
+	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
+		return strconv.AppendInt(dst, value, base10)
+	}, true)
+	b.hasLabel = true
 	return b
 }
 
@@ -361,12 +352,10 @@ func (b *Builder) LabelFloat64(name string, value float64) *Builder {
 	if !b.isValidLabelName(name) {
 		return b
 	}
-	b.buf = b.appendCommaOrLeftBracket()
-	b.buf = append(b.buf, name...)
-	b.buf = append(b.buf, equalByte)
-	b.buf = append(b.buf, doubleQuotesByte)
-	b.buf = strconv.AppendFloat(b.buf, value, floatFormattingVerb, floatShortestPrecision, floatBitSize)
-	b.buf = append(b.buf, doubleQuotesByte)
+	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
+		return strconv.AppendFloat(dst, value, floatFormattingVerb, floatShortestPrecision, floatBitSize)
+	}, true)
+	b.hasLabel = true
 	return b
 }
 
@@ -451,10 +440,25 @@ func (b *Builder) isValidLabelValue(name, value string) bool {
 	return true
 }
 
-func (b *Builder) appendCommaOrLeftBracket() []byte {
-	if b.hasLabel {
-		return append(b.buf, commaByte)
+// appendSep decides whether to insert a comma or opening brace based on the
+// current buffer tail.
+func sep(dst []byte) byte {
+	if dst[len(dst)-1] == doubleQuotesByte {
+		return commaByte
 	}
-	b.hasLabel = true
-	return append(b.buf, leftBracketByte)
+	return leftBracketByte
+}
+
+// appendLabel appends the label name and wraps the provided value appender in
+// double quotes so the final buffer matches the expected metric format.
+func appendLabel(dst []byte, name string, appender func([]byte) []byte, manualQuote bool) []byte {
+	dst = append(dst, sep(dst))
+	dst = append(dst, name...)
+	dst = append(dst, equalByte)
+	if manualQuote {
+		dst = append(dst, doubleQuotesByte)
+		dst = appender(dst)
+		return append(dst, doubleQuotesByte)
+	}
+	return appender(dst)
 }
