@@ -1,4 +1,4 @@
-module github.com/wazazaby/vimebu/v2
+module github.com/wazazaby/vimebu/v3
 
 go 1.24.0
 
