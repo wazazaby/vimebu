@@ -398,7 +398,7 @@ func BenchmarkBuilderTestCasesSequential(b *testing.B) {
 		}
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
-			for range b.N {
+			for b.Loop() {
 				doBenchmarkCase(tc.input)
 			}
 		})
@@ -423,7 +423,7 @@ func BenchmarkCompareSequentialFmt(b *testing.B) {
 		test    bool
 	)
 
-	for range b.N {
+	for b.Loop() {
 		_ = fmt.Sprintf(`some_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
 		_ = fmt.Sprintf(`some_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
 		_ = fmt.Sprintf(`some_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
@@ -469,7 +469,7 @@ func BenchmarkCompareSequentialVimebu(b *testing.B) {
 		test    bool
 	)
 
-	for range b.N {
+	for b.Loop() {
 		_ = Metric("some_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
 		_ = Metric("some_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
 		_ = Metric("some_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
