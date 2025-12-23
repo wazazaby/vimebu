@@ -154,7 +154,6 @@ func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
 		}
 		return strconv.AppendQuote(dst, value)
 	}, !escapeQuotes)
-
 	b.hasLabel = true
 	return b
 }
