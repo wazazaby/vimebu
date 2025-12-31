@@ -21,6 +21,11 @@ const (
 	errorLabelName string = "error"
 )
 
+const (
+	flagHasMetricName = 1 << iota
+	flagHasLabel
+)
+
 // BuilderOption represents a modifier function that will apply a specific
 // configuration to a [Builder] instance.
 type BuilderOption func(*Builder)
@@ -78,19 +83,25 @@ type Builder struct {
 
 	buf []byte
 
-	hasMetricName bool
-	hasLabel      bool
-
 	labelNameMaxLen  int
 	labelValueMaxLen int
+
+	flags uint8
+}
+
+func (b *Builder) setFlag(flag uint8) {
+	b.flags |= flag
+}
+
+func (b *Builder) hasFlag(flag uint8) bool {
+	return b.flags&flag != 0
 }
 
 // Reset zeroes out a [Builder] instance for reuse.
 func (b *Builder) Reset() {
 	b.pool = nil
 	b.buf = b.buf[:0]
-	b.hasMetricName = false
-	b.hasLabel = false
+	b.flags = 0
 	b.labelNameMaxLen = 0
 	b.labelValueMaxLen = 0
 }
@@ -109,7 +120,7 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 	if len(name) == 0 {
 		panic("vimebu: Builder.Metric has been passed an empty metric name")
 	}
-	if b.hasMetricName {
+	if b.hasFlag(flagHasMetricName) {
 		panic("vimebu: Builder.Metric has already been called on this instance")
 	}
 
@@ -118,7 +129,7 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 	}
 
 	b.buf = append(b.buf, name...)
-	b.hasMetricName = true
+	b.setFlag(flagHasMetricName)
 	return b
 }
 
@@ -142,7 +153,7 @@ func (b *Builder) LabelStringQuote(name, value string) *Builder {
 }
 
 func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
-	if !b.hasMetricName {
+	if !b.hasFlag(flagHasMetricName) {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if !b.isValidLabelName(name) || !b.isValidLabelValue(name, value) {
@@ -154,7 +165,7 @@ func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
 		}
 		return strconv.AppendQuote(dst, value)
 	}, !escapeQuotes)
-	b.hasLabel = true
+	b.setFlag(flagHasLabel)
 	return b
 }
 
@@ -262,7 +273,7 @@ func (b *Builder) LabelUint32(name string, value uint32) *Builder {
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
 func (b *Builder) LabelUint64(name string, value uint64) *Builder {
-	if !b.hasMetricName {
+	if !b.hasFlag(flagHasMetricName) {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if !b.isValidLabelName(name) {
@@ -271,7 +282,7 @@ func (b *Builder) LabelUint64(name string, value uint64) *Builder {
 	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
 		return strconv.AppendUint(dst, value, base10)
 	}, true)
-	b.hasLabel = true
+	b.setFlag(flagHasLabel)
 	return b
 }
 
@@ -317,7 +328,7 @@ func (b *Builder) LabelInt32(name string, value int32) *Builder {
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
 func (b *Builder) LabelInt64(name string, value int64) *Builder {
-	if !b.hasMetricName {
+	if !b.hasFlag(flagHasMetricName) {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if !b.isValidLabelName(name) {
@@ -326,7 +337,7 @@ func (b *Builder) LabelInt64(name string, value int64) *Builder {
 	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
 		return strconv.AppendInt(dst, value, base10)
 	}, true)
-	b.hasLabel = true
+	b.setFlag(flagHasLabel)
 	return b
 }
 
@@ -345,7 +356,7 @@ func (b *Builder) LabelFloat32(name string, value float32) *Builder {
 //
 // Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
 func (b *Builder) LabelFloat64(name string, value float64) *Builder {
-	if !b.hasMetricName {
+	if !b.hasFlag(flagHasMetricName) {
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	}
 	if !b.isValidLabelName(name) {
@@ -354,7 +365,7 @@ func (b *Builder) LabelFloat64(name string, value float64) *Builder {
 	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
 		return strconv.AppendFloat(dst, value, floatFormattingVerb, floatShortestPrecision, floatBitSize)
 	}, true)
-	b.hasLabel = true
+	b.setFlag(flagHasLabel)
 	return b
 }
 
@@ -388,10 +399,10 @@ func (b *Builder) String() string {
 	if b.pool != nil {
 		defer b.pool.Release(b)
 	}
-	if !b.hasMetricName {
+	if !b.hasFlag(flagHasMetricName) {
 		return ""
 	}
-	if b.hasLabel {
+	if b.hasFlag(flagHasLabel) {
 		b.buf = append(b.buf, rightBracketByte)
 	}
 	return string(b.buf)
