@@ -361,16 +361,16 @@ func TestBuilderReset(t *testing.T) {
 	builder := Metric("test_reset", options...).LabelString("test", "something")
 
 	require.NotNil(t, builder.pool)
-	require.True(t, builder.hasMetricName)
-	require.True(t, builder.hasLabel)
+	require.True(t, builder.hasFlag(flagHasMetricName))
+	require.True(t, builder.hasFlag(flagHasLabel))
 	require.Equal(t, 64, builder.labelNameMaxLen)
 	require.Equal(t, 256, builder.labelValueMaxLen)
 
 	builder.Reset()
 
 	require.Nil(t, builder.pool)
-	require.False(t, builder.hasMetricName)
-	require.False(t, builder.hasLabel)
+	require.False(t, builder.hasFlag(flagHasMetricName))
+	require.False(t, builder.hasFlag(flagHasLabel))
 	require.Equal(t, 0, builder.labelNameMaxLen)
 	require.Equal(t, 0, builder.labelValueMaxLen)
 }
