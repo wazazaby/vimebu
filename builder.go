@@ -2,7 +2,9 @@ package vimebu
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"slices"
 	"strconv"
 )
 
@@ -395,6 +397,8 @@ func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
 }
 
 // String builds the complete metric by returning the accumulated string.
+//
+// It implements the [fmt.Stringer] interface.
 func (b *Builder) String() string {
 	if b.pool != nil {
 		defer b.pool.Release(b)
@@ -406,6 +410,49 @@ func (b *Builder) String() string {
 		b.buf = append(b.buf, rightBracketByte)
 	}
 	return string(b.buf)
+}
+
+// Append appends the complete metric string to dst and returns the extended slice.
+//
+// The returned slice may reallocate if dst has insufficient capacity.
+func (b *Builder) Append(dst []byte) []byte {
+	if b.pool != nil {
+		defer b.pool.Release(b)
+	}
+	if !b.hasMetricName {
+		return dst
+	}
+	if b.hasLabel {
+		b.buf = append(b.buf, rightBracketByte)
+	}
+	dst = slices.Grow(dst, len(b.buf))
+	return append(dst, b.buf...)
+}
+
+// WriteTo writes the complete metric string to w and returns the number of bytes written.
+//
+// It implements the [io.WriterTo] interface.
+func (b *Builder) WriteTo(w io.Writer) (int64, error) {
+	if b.pool != nil {
+		defer b.pool.Release(b)
+	}
+	if !b.hasMetricName {
+		return 0, nil
+	}
+	if b.hasLabel {
+		b.buf = append(b.buf, rightBracketByte)
+	}
+	n, err := w.Write(b.buf)
+	return int64(n), err
+}
+
+// Len returns the number of bytes in the complete metric string.
+func (b *Builder) Len() int {
+	s := len(b.buf)
+	if b.hasLabel {
+		s++
+	}
+	return s
 }
 
 // isValidLabelName checks if the provided label name is valid.
@@ -450,10 +497,9 @@ func (b *Builder) isValidLabelValue(name, value string) bool {
 	return true
 }
 
-// appendSep decides whether to insert a comma or opening brace based on the
-// current buffer tail.
-func sep(dst []byte) byte {
-	if dst[len(dst)-1] == doubleQuotesByte {
+// sep decides whether to insert a comma or opening brace based on the current buffer tail.
+func sep(tail byte) byte {
+	if tail == doubleQuotesByte {
 		return commaByte
 	}
 	return leftBracketByte
@@ -462,7 +508,7 @@ func sep(dst []byte) byte {
 // appendLabel appends the label name and wraps the provided value appender in
 // double quotes so the final buffer matches the expected metric format.
 func appendLabel(dst []byte, name string, appender func([]byte) []byte, manualQuote bool) []byte {
-	dst = append(dst, sep(dst))
+	dst = append(dst, sep(dst[len(dst)-1]))
 	dst = append(dst, name...)
 	dst = append(dst, equalByte)
 	if manualQuote {
@@ -472,3 +518,8 @@ func appendLabel(dst []byte, name string, appender func([]byte) []byte, manualQu
 	}
 	return appender(dst)
 }
+
+var (
+	_ fmt.Stringer = (*Builder)(nil)
+	_ io.WriterTo  = (*Builder)(nil)
+)

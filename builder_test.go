@@ -293,7 +293,6 @@ func TestBuilder(t *testing.T) {
 func TestBuilderParallel(t *testing.T) {
 	var eg errgroup.Group
 	for i := range 400 {
-		i := i
 		name := fmt.Sprintf("foobar%d", i)
 		eg.Go(func() error {
 			require.NotPanics(t, func() {
