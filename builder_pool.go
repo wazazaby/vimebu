@@ -2,8 +2,11 @@ package vimebu
 
 import "sync"
 
-// smallBufferSize is an initial allocation minimal capacity.
-const smallBufferSize = 64
+// initialBufferSize is the initial capacity of a pooled Builder's buffer. Sized to hold a
+// metric with ~10 labels, so a Builder taken from a cold pool needs no growth: sync.Pool is
+// drained on every GC cycle, so misses recur and each one would otherwise re-pay the growth
+// allocations that keep this library at one allocation per built metric.
+const initialBufferSize = 256
 
 var defaultBuilderPool = NewBuilderPool()
 
@@ -13,7 +16,7 @@ func NewBuilderPool() *BuilderPool {
 		pool: sync.Pool{
 			New: func() any {
 				return &Builder{
-					buf: make([]byte, 0, smallBufferSize),
+					buf: make([]byte, 0, initialBufferSize),
 				}
 			},
 		},

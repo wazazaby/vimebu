@@ -4,10 +4,17 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 )
 
 const errorLabelName = "error"
+
+// escapeScanMinLen is the value length at which the IndexByte scans in [appendEscaped]
+// start beating a plain byte loop. Empirically tuned on arm64: below it, values tend to
+// carry several escapes and the three scans don't pay for themselves, so lowering this
+// regresses short quoted values.
+const escapeScanMinLen = 48
 
 // noCopy should be embedded into a struct which mustn't be copied,
 // so `go vet` gives a warning if this struct is copied.
@@ -30,8 +37,10 @@ func WithLabelNameMaxLen(maxLen int) BuilderOption {
 // WithLabelValueMaxLen sets the max authorized length for a label value.
 // Zero means no limit. Labels with a longer value are skipped.
 //
-// Only applies to string, error and [fmt.Stringer] values - numeric and bool
-// labels are never skipped on length.
+// Only applies to string, error and [fmt.Stringer] values - numeric and bool labels are
+// never skipped on length. Note that this leaves floats uncapped: [Builder.LabelFloat64]
+// formats without an exponent, so a value like 1e300 emits over 300 bytes regardless of
+// this option.
 func WithLabelValueMaxLen(maxLen int) BuilderOption {
 	return func(b *Builder) {
 		b.labelValueMaxLen = maxLen
@@ -43,10 +52,12 @@ func WithLabelValueMaxLen(maxLen int) BuilderOption {
 // The zero value is ready to use. [Builder] instances must not be copied, nor
 // used from concurrently running goroutines.
 //
-// Every Label* method is a NoOp when the label name is empty, and panics when
-// [Builder.Metric] hasn't been called on the instance yet. Skipped labels are
-// reported with a [log.Printf] line on the standard logger, which you can
-// redirect using [log.SetOutput] :
+// Label* methods panic if [Builder.Metric] hasn't been called yet, except the error and
+// [fmt.Stringer] variants, which return early on a nil value. Labels are skipped when the
+// name is empty or longer than [WithLabelNameMaxLen], and when a string, error or
+// [fmt.Stringer] value is empty or longer than [WithLabelValueMaxLen]. Every skip is
+// reported with a [log.Printf] line on the standard logger, which you can redirect using
+// [log.SetOutput] :
 //   - Logrus : [log.SetOutput]([logrus.Logger.Writer])
 //   - Zap : [zap.RedirectStdLog]([zap.Logger])
 type Builder struct {
@@ -85,7 +96,7 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 	if len(name) == 0 {
 		panic("vimebu: Builder.Metric has been passed an empty metric name")
 	}
-	if len(b.buf) > 0 {
+	if b.hasMetricName() {
 		panic("vimebu: Builder.Metric has already been called on this instance")
 	}
 
@@ -104,8 +115,8 @@ func (b *Builder) LabelString(name, value string) *Builder {
 	return b.labelString(name, value, false)
 }
 
-// LabelStringQuote adds a label with a value of type string to the [Builder],
-// escaping backslashes, double quotes and newlines inside the value.
+// LabelStringQuote adds a label with a value of type string to the [Builder], escaping
+// backslashes, double quotes and newlines inside the value.
 //
 // NoOp if the label value is empty.
 func (b *Builder) LabelStringQuote(name, value string) *Builder {
@@ -114,11 +125,10 @@ func (b *Builder) LabelStringQuote(name, value string) *Builder {
 
 func (b *Builder) labelString(name, value string, escape bool) *Builder {
 	if !b.validLabelName(name) {
-		return b
+		return b.skipLabelName(name)
 	}
 	if lv := len(value); lv == 0 || (b.labelValueMaxLen > 0 && lv > b.labelValueMaxLen) {
-		b.logSkippedLabelValue(name, value)
-		return b
+		return b.skipLabelValue(name, value)
 	}
 	b.openLabel(name)
 	if escape {
@@ -150,8 +160,8 @@ func (b *Builder) LabelNamedError(name string, err error) *Builder {
 	return b.LabelString(name, err.Error())
 }
 
-// LabelErrorQuote adds an "error" label holding err's message to the [Builder],
-// escaping backslashes, double quotes and newlines inside the message.
+// LabelErrorQuote adds an "error" label holding err's message to the [Builder], escaped
+// as [Builder.LabelStringQuote] does.
 //
 // NoOp if err is nil.
 func (b *Builder) LabelErrorQuote(err error) *Builder {
@@ -161,8 +171,8 @@ func (b *Builder) LabelErrorQuote(err error) *Builder {
 	return b.LabelStringQuote(errorLabelName, err.Error())
 }
 
-// LabelNamedErrorQuote adds a label holding err's message to the [Builder],
-// escaping backslashes, double quotes and newlines inside the message.
+// LabelNamedErrorQuote adds a label holding err's message to the [Builder], escaped as
+// [Builder.LabelStringQuote] does.
 //
 // NoOp if err is nil.
 func (b *Builder) LabelNamedErrorQuote(name string, err error) *Builder {
@@ -183,7 +193,7 @@ func (b *Builder) LabelStringer(name string, value fmt.Stringer) *Builder {
 }
 
 // LabelStringerQuote adds a label with a value implementing [fmt.Stringer] to the
-// [Builder], escaping backslashes, double quotes and newlines inside the value.
+// [Builder], escaped as [Builder.LabelStringQuote] does.
 //
 // NoOp if value is nil or if value.String() returns an empty string.
 func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
@@ -196,7 +206,7 @@ func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
 // LabelBool adds a label with a value of type bool to the [Builder].
 func (b *Builder) LabelBool(name string, value bool) *Builder {
 	if !b.validLabelName(name) {
-		return b
+		return b.skipLabelName(name)
 	}
 	b.openLabel(name)
 	b.buf = strconv.AppendBool(b.buf, value)
@@ -227,7 +237,7 @@ func (b *Builder) LabelUint32(name string, value uint32) *Builder {
 // LabelUint64 adds a label with a value of type uint64 to the [Builder].
 func (b *Builder) LabelUint64(name string, value uint64) *Builder {
 	if !b.validLabelName(name) {
-		return b
+		return b.skipLabelName(name)
 	}
 	b.openLabel(name)
 	b.buf = strconv.AppendUint(b.buf, value, 10)
@@ -258,7 +268,7 @@ func (b *Builder) LabelInt32(name string, value int32) *Builder {
 // LabelInt64 adds a label with a value of type int64 to the [Builder].
 func (b *Builder) LabelInt64(name string, value int64) *Builder {
 	if !b.validLabelName(name) {
-		return b
+		return b.skipLabelName(name)
 	}
 	b.openLabel(name)
 	b.buf = strconv.AppendInt(b.buf, value, 10)
@@ -274,7 +284,7 @@ func (b *Builder) LabelFloat32(name string, value float32) *Builder {
 // LabelFloat64 adds a label with a value of type float64 to the [Builder].
 func (b *Builder) LabelFloat64(name string, value float64) *Builder {
 	if !b.validLabelName(name) {
-		return b
+		return b.skipLabelName(name)
 	}
 	b.openLabel(name)
 	b.buf = strconv.AppendFloat(b.buf, value, 'f', -1, 64)
@@ -284,11 +294,14 @@ func (b *Builder) LabelFloat64(name string, value float64) *Builder {
 
 // String builds the complete metric by returning the accumulated string.
 //
-// [Builder] instances obtained from a pool - via [Metric] or [BuilderPool.Metric] -
-// are reset and released back to it.
+// It CONSUMES [Builder] instances that came from a pool - via [Metric] or
+// [BuilderPool.Metric] - resetting them and releasing them back to it. Since [Builder]
+// implements [fmt.Stringer], that also happens when a Builder is handed to any fmt verb,
+// so don't format a Builder you still intend to use.
 func (b *Builder) String() string {
 	if b.hasLabel {
 		b.buf = append(b.buf, '}')
+		b.hasLabel = false
 	}
 	s := string(b.buf)
 	if b.pool != nil {
@@ -297,59 +310,86 @@ func (b *Builder) String() string {
 	return s
 }
 
-// openLabel appends the label separator, the name, the equal sign and the
-// opening double quote. Callers append the value, then the closing quote.
+// hasMetricName reports whether [Builder.Metric] has been called on this instance.
+//
+// It holds because Metric panics on an empty name and is the only thing that writes to
+// the buffer before a label - anything that writes earlier must maintain this.
+func (b *Builder) hasMetricName() bool {
+	return len(b.buf) > 0
+}
+
+// openLabel starts a label: callers must append the value, then the closing double quote.
 func (b *Builder) openLabel(name string) {
+	sep := byte('{')
 	if b.hasLabel {
-		b.buf = append(b.buf, ',')
-	} else {
-		b.buf = append(b.buf, '{')
-		b.hasLabel = true
+		sep = ','
 	}
-	b.buf = append(b.buf, name...)
-	b.buf = append(b.buf, '=', '"')
+	b.hasLabel = true
+	// Chained so the slice header is stored back once instead of after every append.
+	b.buf = append(append(append(b.buf, sep), name...), '=', '"')
 }
 
 // validLabelName reports whether name can be used as a label name.
 //
-// Panics if the [Builder] has no metric name yet.
+// Deliberately free of any call - one would cost 57 of the inliner's 80-point budget and
+// stop this from being inlined into every Label* method. Rejections go to
+// [Builder.skipLabelName].
 func (b *Builder) validLabelName(name string) bool {
-	if ln := len(name); len(b.buf) == 0 || ln == 0 || (b.labelNameMaxLen > 0 && ln > b.labelNameMaxLen) {
-		return b.rejectLabelName(name)
-	}
-	return true
+	ln := len(name)
+	return ln > 0 && b.hasMetricName() && (b.labelNameMaxLen == 0 || ln <= b.labelNameMaxLen)
 }
 
-// rejectLabelName is the cold path of [Builder.validLabelName], kept out of line so
-// the checks themselves stay cheap enough to inline. It always returns false.
-func (b *Builder) rejectLabelName(name string) bool {
+// skipLabelName is the cold path of [Builder.validLabelName]. Its branches mirror that
+// predicate's conditions in the same order - keep them in sync, or a rejection gets
+// reported with the wrong reason.
+func (b *Builder) skipLabelName(name string) *Builder {
 	switch {
-	case len(b.buf) == 0:
+	case !b.hasMetricName():
 		panic("vimebu: can't add a label to a Builder with no metric name")
 	case len(name) == 0:
 		log.Printf("vimebu: metric %q, empty label name - skipping", b.buf)
 	default:
 		log.Printf("vimebu: metric %q, label name %q len exceeds set limit of %d - skipping", b.buf, name, b.labelNameMaxLen)
 	}
-	return false
+	return b
 }
 
-// logSkippedLabelValue is the cold path of the label value checks done by
-// [Builder.labelString], kept out of line so those checks stay cheap.
-func (b *Builder) logSkippedLabelValue(name, value string) {
+// skipLabelValue is the cold path of the label value checks in [Builder.labelString].
+func (b *Builder) skipLabelValue(name, value string) *Builder {
 	if len(value) == 0 {
-		log.Printf("vimebu: metric %q, label name: %q, received empty label value - skipping", b.buf, name)
-		return
+		log.Printf("vimebu: metric %q, label name %q, received empty label value - skipping", b.buf, name)
+		return b
 	}
 	log.Printf("vimebu: metric %q, label name %q, label value %q len exceeds set limit of %d - skipping", b.buf, name, value, b.labelValueMaxLen)
+	return b
 }
 
-// appendEscaped appends value, escaping the only characters the exposition format
+// appendEscaped appends value, escaping the only three characters the exposition format
 // needs escaped inside a label value: backslash, double quote and newline.
 //
-// Runs between two escapes are copied in bulk, so a value needing no escaping at
-// all - the common case - costs a single append.
+// Deliberately not [strconv.AppendQuote]: that writes its own surrounding quotes, and it
+// expands control bytes and invalid UTF-8 into \x / \u escapes that VictoriaMetrics never
+// decodes. Everything outside those three characters is passed through untouched.
+//
+// Runs between escapes are copied in bulk, so a value needing no escaping costs a single
+// append. Above [escapeScanMinLen] the IndexByte scans locate the first escape - or prove
+// there is none - faster than the byte loop can.
 func appendEscaped(dst []byte, value string) []byte {
+	if len(value) >= escapeScanMinLen {
+		i := strings.IndexByte(value, '"')
+		if j := strings.IndexByte(value, '\\'); j >= 0 && (i < 0 || j < i) {
+			i = j
+		}
+		if j := strings.IndexByte(value, '\n'); j >= 0 && (i < 0 || j < i) {
+			i = j
+		}
+		if i < 0 {
+			return append(dst, value...)
+		}
+		dst = append(dst, value[:i]...)
+		value = value[i:]
+	}
+
 	last := 0
 	for i := range len(value) {
 		var escaped byte

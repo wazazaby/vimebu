@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -186,11 +187,41 @@ var testCases = []testCase{
 		input: input{
 			name: "cassandra_query_count",
 			labels: []label{
-				{"plain", fmt.Errorf("i/o timeout"), false},
 				{"quoted", fmt.Errorf(`read "tcp": timeout`), true},
 			},
 		},
-		expected: `cassandra_query_count{plain="i/o timeout",quoted="read \"tcp\": timeout"}`,
+		expected: `cassandra_query_count{quoted="read \"tcp\": timeout"}`,
+	},
+	{
+		// Pins the *Quote escaping set: only backslash, double quote and newline. Everything
+		// else - non-ASCII runes, control characters - is passed through, unlike
+		// strconv.AppendQuote which expands them into \x / \u escapes VictoriaMetrics
+		// never decodes.
+		name: "quoted values escape only backslash, double quote and newline",
+		input: input{
+			name: "escaping_total",
+			labels: []label{
+				{"backslash", `a\b\\c`, true},
+				{"newline", "a\nb", true},
+				{"quotes", `"ab"`, true},
+				{"non_ascii", "caf\u00e9 \u2615", true},
+				{"control", "a\x01b", true},
+			},
+		},
+		expected: `escaping_total{backslash="a\\b\\\\c",newline="a\nb",quotes="\"ab\"",non_ascii="café ☕",control="a` + "\x01" + `b"}`,
+	},
+	{
+		// Values at or over escapeScanMinLen (48) take appendEscaped's IndexByte scan path;
+		// "clean" proves there is nothing to escape, "late" has its only escape past the gate.
+		name: "long quoted values take the scan fast path",
+		input: input{
+			name: "long_escaping_total",
+			labels: []label{
+				{"clean", "/api/v1/organizations/acme/projects/website/deployments", true},
+				{"late", `/api/v1/organizations/acme/projects/website/deploy"ments`, true},
+			},
+		},
+		expected: `long_escaping_total{clean="/api/v1/organizations/acme/projects/website/deployments",late="/api/v1/organizations/acme/projects/website/deploy\"ments"}`,
 	},
 	{
 		name: "fmt.Stringer label values",
@@ -322,29 +353,6 @@ func TestBuilderParallel(t *testing.T) {
 	require.NoError(t, eg.Wait())
 }
 
-// TestLabelStringQuoteEscaping pins down the escaping done by the *Quote methods:
-// only backslashes, double quotes and newlines are escaped. Everything else - including
-// non-ASCII runes and control characters - is passed through untouched, unlike
-// strconv.AppendQuote which expands them into \x.. / \u.... escapes that
-// VictoriaMetrics never decodes.
-func TestLabelStringQuoteEscaping(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct{ name, value, expected string }{
-		{"nothing to escape", "plain/value", `m{v="plain/value"}`},
-		{"double quotes", `a "b" c`, `m{v="a \"b\" c"}`},
-		{"backslashes", `a\b\\c`, `m{v="a\\b\\\\c"}`},
-		{"newline", "a\nb", `m{v="a\nb"}`},
-		{"leading and trailing quotes", `"ab"`, `m{v="\"ab\""}`},
-		{"non-ASCII is passed through", "café ☕", `m{v="café ☕"}`},
-		{"control characters are passed through", "a\x01b", "m{v=\"a\x01b\"}"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, Metric("m").LabelStringQuote("v", tc.value).String())
-		})
-	}
-}
-
 func captureLogOutput(f func()) []string {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
@@ -408,6 +416,40 @@ func TestBuilderReset(t *testing.T) {
 	require.Equal(t, 0, builder.labelValueMaxLen)
 }
 
+func TestBuilderStringIdempotent(t *testing.T) {
+	t.Parallel()
+
+	// Only matters for Builders that String does not release: the zero value and those from
+	// AcquireBuilder. Pooled ones are saved by Release resetting them.
+	var builder Builder
+	builder.Metric("idempotent_total").LabelString("host", "1.2.3.4")
+
+	first := builder.String()
+	require.Equal(t, `idempotent_total{host="1.2.3.4"}`, first)
+	require.Equal(t, first, builder.String())
+	require.Equal(t, first, builder.String())
+}
+
+// TestBuilderSkipLogsReason pins the message for each skip reason, not just the line count.
+// In particular the value-length line must report labelValueMaxLen, not labelNameMaxLen.
+func TestBuilderSkipLogsReason(t *testing.T) {
+	logLines := captureLogOutput(func() {
+		metric := Metric("skip_total", WithLabelNameMaxLen(3), WithLabelValueMaxLen(4)).
+			LabelString("", "value").        // empty name
+			LabelString("toolong", "value"). // name over the limit
+			LabelString("ok", "").           // empty value
+			LabelString("ok", "toolong").    // value over the limit
+			String()
+		require.Equal(t, "skip_total", metric)
+	})
+
+	require.Len(t, logLines, 4)
+	require.Contains(t, logLines[0], "empty label name")
+	require.Contains(t, logLines[1], `label name "toolong" len exceeds set limit of 3`)
+	require.Contains(t, logLines[2], "received empty label value")
+	require.Contains(t, logLines[3], `label value "toolong" len exceeds set limit of 4`)
+}
+
 func BenchmarkBuilderTestCasesParallel(b *testing.B) {
 	for _, tc := range testCases {
 		if tc.skipBench {
@@ -446,94 +488,105 @@ func doBenchmarkCase(in input) {
 	_ = builder.String()
 }
 
-func BenchmarkCompareSequentialFmt(b *testing.B) {
+// Benchmark inputs for the fmt comparison. Kept at package level, along with sink, so that
+// nothing the benchmarks build can be optimised away.
+var (
+	benchHost    = "255.255.255.255"
+	benchVersion = 3
+	benchBytes   = 987654
+	benchRatio   = 123.456
+	benchErr     = fmt.Errorf("mayday")
+	benchFlag    bool
+
+	sink string
+)
+
+// One call per iteration, on purpose. Calling Sprintf several times per iteration with the
+// same arguments lets a single []any allocation be shared across them, which reports 1
+// alloc/op for fmt and hides the real per-call cost.
+func BenchmarkCompareFmt(b *testing.B) {
 	b.ReportAllocs()
-
-	var (
-		host    = "255.255.255.255"
-		version = 3
-		err     = fmt.Errorf("mayday")
-		test    bool
-	)
-
 	for b.Loop() {
-		_ = fmt.Sprintf(`some_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-		_ = fmt.Sprintf(`some_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-		_ = fmt.Sprintf(`some_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-		_ = fmt.Sprintf(`some_metric_name_four{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-		_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-		_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-		_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-		_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_four{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+		sink = fmt.Sprintf(`some_metric_name{host="%s",version="%d",err=%q,test="%t"}`,
+			benchHost, benchVersion, benchErr, benchFlag)
 	}
 }
 
-func BenchmarkCompareParralelFmt(b *testing.B) {
+func BenchmarkCompareVimebu(b *testing.B) {
 	b.ReportAllocs()
+	for b.Loop() {
+		sink = Metric("some_metric_name").
+			LabelString("host", benchHost).
+			LabelInt("version", benchVersion).
+			LabelErrorQuote(benchErr).
+			LabelBool("test", benchFlag).
+			String()
+	}
+}
 
-	var (
-		host    = "255.255.255.255"
-		version = 3
-		err     = fmt.Errorf("mayday")
-		test    bool
-	)
+// Same shape, but with a float and an int above 255. Small ints and false are served from the
+// runtime's static cache, so the benchmark above never pays for boxing; these arguments do.
+func BenchmarkCompareFmtBoxing(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		sink = fmt.Sprintf(`some_metric_name{host="%s",bytes="%d",ratio="%f",err=%q}`,
+			benchHost, benchBytes, benchRatio, benchErr)
+	}
+}
 
+func BenchmarkCompareVimebuBoxing(b *testing.B) {
+	b.ReportAllocs()
+	for b.Loop() {
+		sink = Metric("some_metric_name").
+			LabelString("host", benchHost).
+			LabelInt("bytes", benchBytes).
+			LabelFloat64("ratio", benchRatio).
+			LabelErrorQuote(benchErr).
+			String()
+	}
+}
+
+func BenchmarkCompareFmtParallel(b *testing.B) {
+	b.ReportAllocs()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			_ = fmt.Sprintf(`some_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-			_ = fmt.Sprintf(`some_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-			_ = fmt.Sprintf(`some_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-			_ = fmt.Sprintf(`some_metric_name_four{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-			_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_one{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-			_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_two{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-			_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_three{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
-			_ = fmt.Sprintf(`some_loooooooooooooooooooooooooooooooooonger_metric_name_four{host="%s",version="%d",err=%q,test="%t"}`, host, version, err, test)
+			sink = fmt.Sprintf(`some_metric_name{host="%s",version="%d",err=%q,test="%t"}`,
+				benchHost, benchVersion, benchErr, benchFlag)
 		}
 	})
 }
 
-func BenchmarkCompareSequentialVimebu(b *testing.B) {
+func BenchmarkCompareVimebuParallel(b *testing.B) {
 	b.ReportAllocs()
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			sink = Metric("some_metric_name").
+				LabelString("host", benchHost).
+				LabelInt("version", benchVersion).
+				LabelErrorQuote(benchErr).
+				LabelBool("test", benchFlag).
+				String()
+		}
+	})
+}
 
-	var (
-		host    = "255.255.255.255"
-		version = 3
-		err     = fmt.Errorf("mayday")
-		test    bool
-	)
-
+// End to end, which is what a caller with dynamic labels actually writes.
+func BenchmarkCompareEndToEndFmt(b *testing.B) {
+	b.ReportAllocs()
 	for b.Loop() {
-		_ = Metric("some_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
+		metrics.GetOrCreateCounter(fmt.Sprintf(`e2e_fmt{host="%s",version="%d",err=%q,test="%t"}`,
+			benchHost, benchVersion, benchErr, benchFlag)).Inc()
 	}
 }
 
-func BenchmarkCompareParralelVimebu(b *testing.B) {
+func BenchmarkCompareEndToEndVimebu(b *testing.B) {
 	b.ReportAllocs()
-
-	var (
-		host    = "255.255.255.255"
-		version = 3
-		err     = fmt.Errorf("mayday")
-		test    bool
-	)
-
-	b.RunParallel(func(p *testing.PB) {
-		for p.Next() {
-			_ = Metric("some_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_one").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_two").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_three").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-			_ = Metric("some_loooooooooooooooooooooooooooooooooonger_metric_name_four").LabelString("host", host).LabelInt("version", version).LabelErrorQuote(err).LabelBool("test", test).String()
-		}
-	})
+	for b.Loop() {
+		Metric("e2e_vimebu").
+			LabelString("host", benchHost).
+			LabelInt("version", benchVersion).
+			LabelErrorQuote(benchErr).
+			LabelBool("test", benchFlag).
+			GetOrCreateCounter().Inc()
+	}
 }

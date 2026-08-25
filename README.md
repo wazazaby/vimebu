@@ -100,25 +100,42 @@ You can use these methods to append specific value types to the builder :
 * `Builder.LabelUint` and variations for unsigned integers
 * `Builder.LabelFloat32` and `Builder.LabelFloat64` for floats
 * `Builder.LabelStringer` for values implementing the `fmt.Stringer` interface
-* `Builder.LabelError` for values implementing the `error` interface
+* `Builder.LabelError` and `Builder.LabelNamedError` for values implementing the `error` interface
 
 ### Benchmark comparison
-Some simple benchmarks comparing building a metric with the `fmt` package vs vimebu.
-Each loop builds 8 metrics, each with 4 labels (string, int, error and bool).
+Building the same metric — 4 labels (string, int, error, bool) — with the `fmt` package vs vimebu.
 
-vimebu is about 2.3x faster sequentially and ~25% faster in parallel. Both allocate
-once per built metric: that single allocation is the returned string, and it's the floor
-for any API handing back a `string`.
+vimebu is roughly 2.7x faster and allocates once instead of twice. The single allocation is the
+returned string, which is the floor for any API handing back a `string`; `fmt.Sprintf` adds a
+second for the `[]any` it has to build for its variadic arguments.
 
-Medians over 6 runs, `go test -bench="BenchmarkCompare" -benchmem -run=NONE -count=6 | benchstat -`
+That gap widens with the label types. `fmt` boxes every argument into an `any`, and only small
+integers and `false` come free from the runtime's static cache — pass a float or an int above
+255 and it allocates for each one. vimebu stays at one allocation regardless, because
+`strconv.Append*` writes into the buffer with no interface conversion.
+
+Medians over 6 runs, `go test -bench=BenchmarkCompare -benchmem -run=NONE -count=6 | benchstat -`
 on an Apple M1 Max, Go 1.27, darwin/arm64:
 
 | benchmark | sec/op | B/op | allocs/op |
 | --- | --- | --- | --- |
-| `CompareSequentialFmt` | 1.562µ ± 1% | 896 | 8 |
-| `CompareSequentialVimebu` | **665.0n ± 1%** | 896 | 8 |
-| `CompareParralelFmt` | 586.9n ± 11% | 896 | 8 |
-| `CompareParralelVimebu` | **439.3n ± 28%** | 896 | 8 |
+| `CompareFmt` | 186.9n ± 2% | 96 | 2 |
+| `CompareVimebu` | **68.90n ± 2%** | 80 | **1** |
+| `CompareFmtBoxing` (float + int >255) | 238.5n ± 5% | 128 | 4 |
+| `CompareVimebuBoxing` | **110.1n ± 4%** | 96 | **1** |
+| `CompareFmtParallel` | 100.0n ± 6% | 96 | 2 |
+| `CompareVimebuParallel` | **70.88n ± 3%** | 80 | **1** |
+| `CompareEndToEndFmt` | 196.5n ± 2% | 96 | 2 |
+| `CompareEndToEndVimebu` | **81.23n ± 3%** | 80 | **1** |
+
+The `EndToEnd` pair includes `GetOrCreateCounter().Inc()`, which is what you actually write on a
+hot path with variable label values. VictoriaMetrics' own map lookup and mutex sit on both sides,
+so they narrow the gap without closing it.
+
+Note the benchmarks call each formatter **once per iteration**, with the result assigned to a
+package-level sink. Calling `fmt.Sprintf` several times per iteration with the same arguments lets
+one `[]any` allocation be shared between the calls, which reports 1 alloc/op and hides the real
+per-call cost.
 
 ### Under the hood
 Builders can be acquired and released using a BuilderPool, which is a wrapper around a `sync.Pool` instance.
@@ -144,6 +161,11 @@ Using a pool allows for reusing objects, thus relieving pressure on the garbage 
 Understanding that this syntax can be quite verbose, vimebu also provides a simpler API that manages the lifecycle
 of these objects internally by using the `vimebu.Metric` package level function.
 Here, vimebu will automatically acquire a Builder, to finally reset and release it when the `Builder.String` method is called.
+
+One consequence worth knowing: `Builder.String` **consumes** a pooled Builder. Since `Builder`
+implements `fmt.Stringer`, that also happens if you hand one to a `fmt` verb — so
+`fmt.Sprintf("%v", builder)` returns the metric *and* releases the builder, leaving it empty for
+any later use. Don't format a Builder you still intend to build with.
 
 #### Concurrency notes
 * A Builder instance is not safe to use from concurrently running goroutines
