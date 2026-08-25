@@ -182,6 +182,17 @@ var testCases = []testCase{
 		expected: `cassandra_query_count{a="1",b="0",c="11111111.22222222",d="1234.456789",e="1234.456789"}`,
 	},
 	{
+		name: "error label values",
+		input: input{
+			name: "cassandra_query_count",
+			labels: []label{
+				{"plain", fmt.Errorf("i/o timeout"), false},
+				{"quoted", fmt.Errorf(`read "tcp": timeout`), true},
+			},
+		},
+		expected: `cassandra_query_count{plain="i/o timeout",quoted="read \"tcp\": timeout"}`,
+	},
+	{
 		name: "fmt.Stringer label values",
 		input: input{
 			name: "external_hit_count",
@@ -236,9 +247,9 @@ func addLabelAnyToBuilder(builder *Builder, label label) {
 		}
 	case error:
 		if label.shouldQuote {
-			builder.LabelNamedError(label.name, v)
-		} else {
 			builder.LabelNamedErrorQuote(label.name, v)
+		} else {
+			builder.LabelNamedError(label.name, v)
 		}
 	default:
 		panic(fmt.Sprintf("unsupported type %T", v))
@@ -311,6 +322,29 @@ func TestBuilderParallel(t *testing.T) {
 	require.NoError(t, eg.Wait())
 }
 
+// TestLabelStringQuoteEscaping pins down the escaping done by the *Quote methods:
+// only backslashes, double quotes and newlines are escaped. Everything else - including
+// non-ASCII runes and control characters - is passed through untouched, unlike
+// strconv.AppendQuote which expands them into \x.. / \u.... escapes that
+// VictoriaMetrics never decodes.
+func TestLabelStringQuoteEscaping(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ name, value, expected string }{
+		{"nothing to escape", "plain/value", `m{v="plain/value"}`},
+		{"double quotes", `a "b" c`, `m{v="a \"b\" c"}`},
+		{"backslashes", `a\b\\c`, `m{v="a\\b\\\\c"}`},
+		{"newline", "a\nb", `m{v="a\nb"}`},
+		{"leading and trailing quotes", `"ab"`, `m{v="\"ab\""}`},
+		{"non-ASCII is passed through", "café ☕", `m{v="café ☕"}`},
+		{"control characters are passed through", "a\x01b", "m{v=\"a\x01b\"}"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, Metric("m").LabelStringQuote("v", tc.value).String())
+		})
+	}
+}
+
 func captureLogOutput(f func()) []string {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
@@ -360,16 +394,16 @@ func TestBuilderReset(t *testing.T) {
 	builder := Metric("test_reset", options...).LabelString("test", "something")
 
 	require.NotNil(t, builder.pool)
-	require.True(t, builder.hasFlag(flagHasMetricName))
-	require.True(t, builder.hasFlag(flagHasLabel))
+	require.NotEmpty(t, builder.buf)
+	require.True(t, builder.hasLabel)
 	require.Equal(t, 64, builder.labelNameMaxLen)
 	require.Equal(t, 256, builder.labelValueMaxLen)
 
 	builder.Reset()
 
 	require.Nil(t, builder.pool)
-	require.False(t, builder.hasFlag(flagHasMetricName))
-	require.False(t, builder.hasFlag(flagHasLabel))
+	require.Empty(t, builder.buf)
+	require.False(t, builder.hasLabel)
 	require.Equal(t, 0, builder.labelNameMaxLen)
 	require.Equal(t, 0, builder.labelValueMaxLen)
 }

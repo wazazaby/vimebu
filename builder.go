@@ -4,38 +4,23 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"sync"
 )
 
-const (
-	leftBracketByte  byte = '{'
-	rightBracketByte byte = '}'
-	commaByte        byte = ','
-	equalByte        byte = '='
-	doubleQuotesByte byte = '"'
+const errorLabelName = "error"
 
-	base10                 int  = 10
-	floatFormattingVerb    byte = 'f'
-	floatShortestPrecision int  = -1
-	floatBitSize           int  = 64
-
-	errorLabelName string = "error"
-)
-
-const (
-	flagHasMetricName = 1 << iota
-	flagHasLabel
-)
+// noCopy should be embedded into a struct which mustn't be copied,
+// so `go vet` gives a warning if this struct is copied.
+//
+// See https://github.com/golang/go/issues/8005#issuecomment-190753527 for details.
+type noCopy [0]sync.Mutex
 
 // BuilderOption represents a modifier function that will apply a specific
 // configuration to a [Builder] instance.
 type BuilderOption func(*Builder)
 
 // WithLabelNameMaxLen sets the max authorized length for a label name.
-//
-// Zero means no length limit.
-//
-// If the max len is exceeded for a label name, a log line containing the
-// reason will be written to [os.Stderr], and the label will be skipped.
+// Zero means no limit. Labels with a longer name are skipped.
 func WithLabelNameMaxLen(maxLen int) BuilderOption {
 	return func(b *Builder) {
 		b.labelNameMaxLen = maxLen
@@ -43,20 +28,10 @@ func WithLabelNameMaxLen(maxLen int) BuilderOption {
 }
 
 // WithLabelValueMaxLen sets the max authorized length for a label value.
+// Zero means no limit. Labels with a longer value are skipped.
 //
-// Only applies to label values added using the following methods :
-//
-//   - [Builder.LabelString]
-//   - [Builder.LabelStringQuote]
-//   - [Builder.LabelError]
-//   - [Builder.LabelErrorQuote]
-//   - [Builder.LabelNamedError]
-//   - [Builder.LabelNamedErrorQuote]
-//
-// Zero means no length limit.
-//
-// If the max len is exceeded for a label value, a log line containing the
-// reason will be written to [os.Stderr], and the label will be skipped.
+// Only applies to string, error and [fmt.Stringer] values - numeric and bool
+// labels are never skipped on length.
 func WithLabelValueMaxLen(maxLen int) BuilderOption {
 	return func(b *Builder) {
 		b.labelValueMaxLen = maxLen
@@ -65,15 +40,13 @@ func WithLabelValueMaxLen(maxLen int) BuilderOption {
 
 // Builder is used to efficiently build a VictoriaMetrics metric.
 //
-// It is forbidden copying [Builder] instances.
-// [Builder] instances MUST not be used from concurrently running goroutines.
+// The zero value is ready to use. [Builder] instances must not be copied, nor
+// used from concurrently running goroutines.
 //
-// The zero value is ready to use.
-//
-// When validating label names and values, [Builder] instances will write log lines
-// to [os.Stderr] using the [log.Printf] function (standard logger).
-//
-// If you wish to redirect these log lines to your own logger, you can do this :
+// Every Label* method is a NoOp when the label name is empty, and panics when
+// [Builder.Metric] hasn't been called on the instance yet. Skipped labels are
+// reported with a [log.Printf] line on the standard logger, which you can
+// redirect using [log.SetOutput] :
 //   - Logrus : [log.SetOutput]([logrus.Logger.Writer])
 //   - Zap : [zap.RedirectStdLog]([zap.Logger])
 type Builder struct {
@@ -86,22 +59,14 @@ type Builder struct {
 	labelNameMaxLen  int
 	labelValueMaxLen int
 
-	flags uint8
-}
-
-func (b *Builder) setFlag(flag uint8) {
-	b.flags |= flag
-}
-
-func (b *Builder) hasFlag(flag uint8) bool {
-	return b.flags&flag != 0
+	hasLabel bool
 }
 
 // Reset zeroes out a [Builder] instance for reuse.
 func (b *Builder) Reset() {
 	b.pool = nil
 	b.buf = b.buf[:0]
-	b.flags = 0
+	b.hasLabel = false
 	b.labelNameMaxLen = 0
 	b.labelValueMaxLen = 0
 }
@@ -120,7 +85,7 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 	if len(name) == 0 {
 		panic("vimebu: Builder.Metric has been passed an empty metric name")
 	}
-	if b.hasFlag(flagHasMetricName) {
+	if len(b.buf) > 0 {
 		panic("vimebu: Builder.Metric has already been called on this instance")
 	}
 
@@ -129,51 +94,45 @@ func (b *Builder) Metric(name string, options ...BuilderOption) *Builder {
 	}
 
 	b.buf = append(b.buf, name...)
-	b.setFlag(flagHasMetricName)
 	return b
 }
 
 // LabelString adds a label with a value of type string to the [Builder].
 //
-// NoOp if the label name or value are empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+// NoOp if the label value is empty.
 func (b *Builder) LabelString(name, value string) *Builder {
 	return b.labelString(name, value, false)
 }
 
-// LabelStringQuote adds a label with a value of type string to the [Builder].
-// Quotes inside label value will be escaped using [strconv.AppendQuote].
+// LabelStringQuote adds a label with a value of type string to the [Builder],
+// escaping backslashes, double quotes and newlines inside the value.
 //
-// NoOp if the label name or value are empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+// NoOp if the label value is empty.
 func (b *Builder) LabelStringQuote(name, value string) *Builder {
 	return b.labelString(name, value, true)
 }
 
-func (b *Builder) labelString(name, value string, escapeQuotes bool) *Builder {
-	if !b.hasFlag(flagHasMetricName) {
-		panic("vimebu: can't add a label to a Builder with no metric name")
-	}
-	if !b.isValidLabelName(name) || !b.isValidLabelValue(name, value) {
+func (b *Builder) labelString(name, value string, escape bool) *Builder {
+	if !b.validLabelName(name) {
 		return b
 	}
-	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
-		if !escapeQuotes { // Fast path for when explicit quote escaping is not required.
-			return append(dst, value...)
-		}
-		return strconv.AppendQuote(dst, value)
-	}, !escapeQuotes)
-	b.setFlag(flagHasLabel)
+	if lv := len(value); lv == 0 || (b.labelValueMaxLen > 0 && lv > b.labelValueMaxLen) {
+		b.logSkippedLabelValue(name, value)
+		return b
+	}
+	b.openLabel(name)
+	if escape {
+		b.buf = appendEscaped(b.buf, value)
+	} else {
+		b.buf = append(b.buf, value...)
+	}
+	b.buf = append(b.buf, '"')
 	return b
 }
 
-// LabelError adds a label with a value implementing the error interface to the [Builder].
+// LabelError adds an "error" label holding err's message to the [Builder].
 //
-// NoOp if the label name is empty, or if err is nil.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+// NoOp if err is nil.
 func (b *Builder) LabelError(err error) *Builder {
 	if err == nil {
 		return b
@@ -181,11 +140,9 @@ func (b *Builder) LabelError(err error) *Builder {
 	return b.LabelString(errorLabelName, err.Error())
 }
 
-// LabelNamedError adds a label with a value implementing the error interface to the [Builder].
+// LabelNamedError adds a label holding err's message to the [Builder].
 //
-// NoOp if the label name is empty, or if err is nil.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+// NoOp if err is nil.
 func (b *Builder) LabelNamedError(name string, err error) *Builder {
 	if err == nil {
 		return b
@@ -193,12 +150,10 @@ func (b *Builder) LabelNamedError(name string, err error) *Builder {
 	return b.LabelString(name, err.Error())
 }
 
-// LabelErrorQuote adds a label with a value implementing the error interface to the [Builder].
-// Quotes inside label value will be escaped using [strconv.AppendQuote].
+// LabelErrorQuote adds an "error" label holding err's message to the [Builder],
+// escaping backslashes, double quotes and newlines inside the message.
 //
-// NoOp if the label name is empty, or if err is nil.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+// NoOp if err is nil.
 func (b *Builder) LabelErrorQuote(err error) *Builder {
 	if err == nil {
 		return b
@@ -206,12 +161,10 @@ func (b *Builder) LabelErrorQuote(err error) *Builder {
 	return b.LabelStringQuote(errorLabelName, err.Error())
 }
 
-// LabelNamedErrorQuote adds a label with a value implementing the error interface to the [Builder].
-// Quotes inside label value will be escaped using [strconv.AppendQuote].
+// LabelNamedErrorQuote adds a label holding err's message to the [Builder],
+// escaping backslashes, double quotes and newlines inside the message.
 //
-// NoOp if the label name is empty, or if err is nil.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+// NoOp if err is nil.
 func (b *Builder) LabelNamedErrorQuote(name string, err error) *Builder {
 	if err == nil {
 		return b
@@ -219,161 +172,9 @@ func (b *Builder) LabelNamedErrorQuote(name string, err error) *Builder {
 	return b.LabelStringQuote(name, err.Error())
 }
 
-// LabelBool adds a label with a value of type bool to the [Builder].
+// LabelStringer adds a label with a value implementing [fmt.Stringer] to the [Builder].
 //
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelBool(name string, value bool) *Builder {
-	if value {
-		return b.LabelString(name, "true")
-	}
-	return b.LabelString(name, "false")
-}
-
-// LabelUint adds a label with a value of type uint to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelUint(name string, value uint) *Builder {
-	return b.LabelUint64(name, uint64(value))
-}
-
-// LabelUint8 adds a label with a value of type uint8 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelUint8(name string, value uint8) *Builder {
-	return b.LabelUint64(name, uint64(value))
-}
-
-// LabelUint16 adds a label with a value of type uint16 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelUint16(name string, value uint16) *Builder {
-	return b.LabelUint64(name, uint64(value))
-}
-
-// LabelUint32 adds a label with a value of type uint32 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelUint32(name string, value uint32) *Builder {
-	return b.LabelUint64(name, uint64(value))
-}
-
-// LabelUint64 adds a label with a value of type uint64 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelUint64(name string, value uint64) *Builder {
-	if !b.hasFlag(flagHasMetricName) {
-		panic("vimebu: can't add a label to a Builder with no metric name")
-	}
-	if !b.isValidLabelName(name) {
-		return b
-	}
-	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
-		return strconv.AppendUint(dst, value, base10)
-	}, true)
-	b.setFlag(flagHasLabel)
-	return b
-}
-
-// LabelInt adds a label with a value of type int to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelInt(name string, value int) *Builder {
-	return b.LabelInt64(name, int64(value))
-}
-
-// LabelInt8 adds a label with a value of type int8 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelInt8(name string, value int8) *Builder {
-	return b.LabelInt64(name, int64(value))
-}
-
-// LabelInt16 adds a label with a value of type int16 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelInt16(name string, value int16) *Builder {
-	return b.LabelInt64(name, int64(value))
-}
-
-// LabelInt32 adds a label with a value of type int32 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelInt32(name string, value int32) *Builder {
-	return b.LabelInt64(name, int64(value))
-}
-
-// LabelInt64 adds a label with a value of type int64 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelInt64(name string, value int64) *Builder {
-	if !b.hasFlag(flagHasMetricName) {
-		panic("vimebu: can't add a label to a Builder with no metric name")
-	}
-	if !b.isValidLabelName(name) {
-		return b
-	}
-	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
-		return strconv.AppendInt(dst, value, base10)
-	}, true)
-	b.setFlag(flagHasLabel)
-	return b
-}
-
-// LabelFloat32 adds a label with a value of type float32 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelFloat32(name string, value float32) *Builder {
-	return b.LabelFloat64(name, float64(value))
-}
-
-// LabelFloat64 adds a label with a value of type float64 to the [Builder].
-//
-// NoOp if the label name is empty.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
-func (b *Builder) LabelFloat64(name string, value float64) *Builder {
-	if !b.hasFlag(flagHasMetricName) {
-		panic("vimebu: can't add a label to a Builder with no metric name")
-	}
-	if !b.isValidLabelName(name) {
-		return b
-	}
-	b.buf = appendLabel(b.buf, name, func(dst []byte) []byte {
-		return strconv.AppendFloat(dst, value, floatFormattingVerb, floatShortestPrecision, floatBitSize)
-	}, true)
-	b.setFlag(flagHasLabel)
-	return b
-}
-
-// LabelStringer adds a label with a value implementing the [fmt.Stringer] interface to the [Builder].
-//
-// NoOp if the label name is empty, if value is nil, or if the value.String() method call returns an empty string.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+// NoOp if value is nil or if value.String() returns an empty string.
 func (b *Builder) LabelStringer(name string, value fmt.Stringer) *Builder {
 	if value == nil {
 		return b
@@ -381,12 +182,10 @@ func (b *Builder) LabelStringer(name string, value fmt.Stringer) *Builder {
 	return b.LabelString(name, value.String())
 }
 
-// LabelStringerQuote adds a label with a value implementing the [fmt.Stringer] interface to the [Builder].
-// Quotes inside label value will be escaped using [strconv.AppendQuote].
+// LabelStringerQuote adds a label with a value implementing [fmt.Stringer] to the
+// [Builder], escaping backslashes, double quotes and newlines inside the value.
 //
-// NoOp if the label name is empty, if value is nil, or if the value.String() method call returns an empty string.
-//
-// Panics if [Builder.Metric] hasn't been called on this instance of the [Builder].
+// NoOp if value is nil or if value.String() returns an empty string.
 func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
 	if value == nil {
 		return b
@@ -394,81 +193,177 @@ func (b *Builder) LabelStringerQuote(name string, value fmt.Stringer) *Builder {
 	return b.LabelStringQuote(name, value.String())
 }
 
+// LabelBool adds a label with a value of type bool to the [Builder].
+func (b *Builder) LabelBool(name string, value bool) *Builder {
+	if !b.validLabelName(name) {
+		return b
+	}
+	b.openLabel(name)
+	b.buf = strconv.AppendBool(b.buf, value)
+	b.buf = append(b.buf, '"')
+	return b
+}
+
+// LabelUint adds a label with a value of type uint to the [Builder].
+func (b *Builder) LabelUint(name string, value uint) *Builder {
+	return b.LabelUint64(name, uint64(value))
+}
+
+// LabelUint8 adds a label with a value of type uint8 to the [Builder].
+func (b *Builder) LabelUint8(name string, value uint8) *Builder {
+	return b.LabelUint64(name, uint64(value))
+}
+
+// LabelUint16 adds a label with a value of type uint16 to the [Builder].
+func (b *Builder) LabelUint16(name string, value uint16) *Builder {
+	return b.LabelUint64(name, uint64(value))
+}
+
+// LabelUint32 adds a label with a value of type uint32 to the [Builder].
+func (b *Builder) LabelUint32(name string, value uint32) *Builder {
+	return b.LabelUint64(name, uint64(value))
+}
+
+// LabelUint64 adds a label with a value of type uint64 to the [Builder].
+func (b *Builder) LabelUint64(name string, value uint64) *Builder {
+	if !b.validLabelName(name) {
+		return b
+	}
+	b.openLabel(name)
+	b.buf = strconv.AppendUint(b.buf, value, 10)
+	b.buf = append(b.buf, '"')
+	return b
+}
+
+// LabelInt adds a label with a value of type int to the [Builder].
+func (b *Builder) LabelInt(name string, value int) *Builder {
+	return b.LabelInt64(name, int64(value))
+}
+
+// LabelInt8 adds a label with a value of type int8 to the [Builder].
+func (b *Builder) LabelInt8(name string, value int8) *Builder {
+	return b.LabelInt64(name, int64(value))
+}
+
+// LabelInt16 adds a label with a value of type int16 to the [Builder].
+func (b *Builder) LabelInt16(name string, value int16) *Builder {
+	return b.LabelInt64(name, int64(value))
+}
+
+// LabelInt32 adds a label with a value of type int32 to the [Builder].
+func (b *Builder) LabelInt32(name string, value int32) *Builder {
+	return b.LabelInt64(name, int64(value))
+}
+
+// LabelInt64 adds a label with a value of type int64 to the [Builder].
+func (b *Builder) LabelInt64(name string, value int64) *Builder {
+	if !b.validLabelName(name) {
+		return b
+	}
+	b.openLabel(name)
+	b.buf = strconv.AppendInt(b.buf, value, 10)
+	b.buf = append(b.buf, '"')
+	return b
+}
+
+// LabelFloat32 adds a label with a value of type float32 to the [Builder].
+func (b *Builder) LabelFloat32(name string, value float32) *Builder {
+	return b.LabelFloat64(name, float64(value))
+}
+
+// LabelFloat64 adds a label with a value of type float64 to the [Builder].
+func (b *Builder) LabelFloat64(name string, value float64) *Builder {
+	if !b.validLabelName(name) {
+		return b
+	}
+	b.openLabel(name)
+	b.buf = strconv.AppendFloat(b.buf, value, 'f', -1, 64)
+	b.buf = append(b.buf, '"')
+	return b
+}
+
 // String builds the complete metric by returning the accumulated string.
+//
+// [Builder] instances obtained from a pool - via [Metric] or [BuilderPool.Metric] -
+// are reset and released back to it.
 func (b *Builder) String() string {
+	if b.hasLabel {
+		b.buf = append(b.buf, '}')
+	}
+	s := string(b.buf)
 	if b.pool != nil {
-		defer b.pool.Release(b)
+		b.pool.Release(b)
 	}
-	if !b.hasFlag(flagHasMetricName) {
-		return ""
-	}
-	if b.hasFlag(flagHasLabel) {
-		b.buf = append(b.buf, rightBracketByte)
-	}
-	return string(b.buf)
+	return s
 }
 
-// isValidLabelName checks if the provided label name is valid.
+// openLabel appends the label separator, the name, the equal sign and the
+// opening double quote. Callers append the value, then the closing quote.
+func (b *Builder) openLabel(name string) {
+	if b.hasLabel {
+		b.buf = append(b.buf, ',')
+	} else {
+		b.buf = append(b.buf, '{')
+		b.hasLabel = true
+	}
+	b.buf = append(b.buf, name...)
+	b.buf = append(b.buf, '=', '"')
+}
+
+// validLabelName reports whether name can be used as a label name.
 //
-// For it to be valid, it's len must be greater than 0.
-//
-// If the [Builder] was passed the [WithLabelNameMaxLen] option, the
-// label name len must also be less than the provided max len value.
-//
-// In case of an invalid label name, a log line containing the reasons will be written to [os.Stderr].
-func (b *Builder) isValidLabelName(name string) bool {
-	ln := len(name)
-	if ln == 0 {
+// Panics if the [Builder] has no metric name yet.
+func (b *Builder) validLabelName(name string) bool {
+	if ln := len(name); len(b.buf) == 0 || ln == 0 || (b.labelNameMaxLen > 0 && ln > b.labelNameMaxLen) {
+		return b.rejectLabelName(name)
+	}
+	return true
+}
+
+// rejectLabelName is the cold path of [Builder.validLabelName], kept out of line so
+// the checks themselves stay cheap enough to inline. It always returns false.
+func (b *Builder) rejectLabelName(name string) bool {
+	switch {
+	case len(b.buf) == 0:
+		panic("vimebu: can't add a label to a Builder with no metric name")
+	case len(name) == 0:
 		log.Printf("vimebu: metric %q, empty label name - skipping", b.buf)
-		return false
-	}
-	if b.labelNameMaxLen > 0 && ln > b.labelNameMaxLen {
+	default:
 		log.Printf("vimebu: metric %q, label name %q len exceeds set limit of %d - skipping", b.buf, name, b.labelNameMaxLen)
-		return false
 	}
-	return true
+	return false
 }
 
-// isValidLabelValue checks if the provided label value is valid.
-//
-// For it to be valid, it's len must be greater than 0.
-//
-// If the [Builder] was passed the [WithLabelValueMaxLen] option, the
-// label value len must also be less than the provided max len value.
-//
-// In case of an invalid label value, a log line containing the reasons will be written to [os.Stderr].
-func (b *Builder) isValidLabelValue(name, value string) bool {
-	lv := len(value)
-	if lv == 0 {
+// logSkippedLabelValue is the cold path of the label value checks done by
+// [Builder.labelString], kept out of line so those checks stay cheap.
+func (b *Builder) logSkippedLabelValue(name, value string) {
+	if len(value) == 0 {
 		log.Printf("vimebu: metric %q, label name: %q, received empty label value - skipping", b.buf, name)
-		return false
+		return
 	}
-	if b.labelValueMaxLen > 0 && lv > b.labelValueMaxLen {
-		log.Printf("vimebu: metric %q, label name %q, label value %q len exceeds set limit of %d - skipping", b.buf, name, value, b.labelNameMaxLen)
-		return false
-	}
-	return true
+	log.Printf("vimebu: metric %q, label name %q, label value %q len exceeds set limit of %d - skipping", b.buf, name, value, b.labelValueMaxLen)
 }
 
-// appendSep decides whether to insert a comma or opening brace based on the
-// current buffer tail.
-func sep(dst []byte) byte {
-	if dst[len(dst)-1] == doubleQuotesByte {
-		return commaByte
+// appendEscaped appends value, escaping the only characters the exposition format
+// needs escaped inside a label value: backslash, double quote and newline.
+//
+// Runs between two escapes are copied in bulk, so a value needing no escaping at
+// all - the common case - costs a single append.
+func appendEscaped(dst []byte, value string) []byte {
+	last := 0
+	for i := range len(value) {
+		var escaped byte
+		switch value[i] {
+		case '\\', '"':
+			escaped = value[i]
+		case '\n':
+			escaped = 'n'
+		default:
+			continue
+		}
+		dst = append(dst, value[last:i]...)
+		dst = append(dst, '\\', escaped)
+		last = i + 1
 	}
-	return leftBracketByte
-}
-
-// appendLabel appends the label name and wraps the provided value appender in
-// double quotes so the final buffer matches the expected metric format.
-func appendLabel(dst []byte, name string, appender func([]byte) []byte, manualQuote bool) []byte {
-	dst = append(dst, sep(dst))
-	dst = append(dst, name...)
-	dst = append(dst, equalByte)
-	if manualQuote {
-		dst = append(dst, doubleQuotesByte)
-		dst = appender(dst)
-		return append(dst, doubleQuotesByte)
-	}
-	return appender(dst)
+	return append(dst, value[last:]...)
 }

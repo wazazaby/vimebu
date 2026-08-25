@@ -2,14 +2,10 @@ package vimebu
 
 import "sync"
 
-const (
-	// smallBufferSize is an initial allocation minimal capacity.
-	smallBufferSize int = 64
-)
+// smallBufferSize is an initial allocation minimal capacity.
+const smallBufferSize = 64
 
-var (
-	defaultBuilderPool = NewBuilderPool()
-)
+var defaultBuilderPool = NewBuilderPool()
 
 // NewBuilderPool creates a new [BuilderPool] instance.
 func NewBuilderPool() *BuilderPool {
